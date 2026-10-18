@@ -42,12 +42,27 @@ jobs:
           [ -n "$label" ] && title="$title ${label^}"
           echo "label=$label" >> "$GITHUB_OUTPUT"
           echo "title=$title" >> "$GITHUB_OUTPUT"
+      # The release's text: release-notes.md, then this version's section of
+      # CHANGELOG.md (docs/decisions/0057). No section, no release.
+      - name: Write the notes
+        shell: bash
+        run: |
+          awk -v heading="## [${TAG#v}]" '
+            index($0, heading) == 1 { found = 1; next }
+            found && (/^## / || /^\[[^]]+\]: /) { exit }
+            found
+          ' CHANGELOG.md > changes.md
+          if ! grep -q '[^[:space:]]' changes.md; then
+            echo "::error::CHANGELOG.md has no section for ${TAG#v}"
+            exit 1
+          fi
+          { cat .github/release-notes.md; echo; echo "## What's new"; cat changes.md; } > notes.md
       - name: Create the draft (once; a rerun keeps it)
         run: |
           gh release view "$TAG" >/dev/null 2>&1 ||
             gh release create "$TAG" --draft --prerelease --verify-tag \
               --title "${{ steps.names.outputs.title }}" \
-              --notes-file .github/release-notes.md
+              --notes-file notes.md
 
   app:
     name: App (${{ matrix.name }})

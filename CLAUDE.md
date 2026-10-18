@@ -354,7 +354,10 @@ docs/service.md    running Ottie as a service: for you, for the computer, Docker
 docs/remote.md     reaching Ottie from other devices: Tailscale, a VPN, a reverse proxy; a token per device; folders
 .claude/           settings.json (SessionStart hook) + cloud-setup.sh: cloud sessions' setup [exists]
 .github/           workflows/release.yml (a tag v<version>[-<label>] → a draft pre-release: installers on Windows,
-                   Linux, macOS, the extensions' zips; 0056) + release-notes.md (its text, for testers) [exists]
+                   Linux, macOS, the extensions' zips; 0056) + release-notes.md (its text, for testers, before
+                   the version's section of CHANGELOG.md) [exists]
+CHANGELOG.md       what each version adds, changes and fixes, for the people using Ottie (Keep a Changelog, 0057)
+                   [exists]
 ```
 
 ## Commands
@@ -375,7 +378,8 @@ cargo run -p ottie -- service status # Ottie as a service (install / uninstall; 
 cargo run -p ottie -- device list    # other devices' tokens (add <name> [--read-only] / remove <id>); `token --new`
 cargo run -p ottie -- extension install  # the extension's native host for each browser found (status / uninstall)
 docker build -t ottie .              # the headless image (docs/service.md)
-git tag v0.1.0-experimental && git push origin v0.1.0-experimental  # a draft alpha release on GitHub (0056)
+git tag v0.1.0-experimental && git push origin v0.1.0-experimental  # a draft alpha release on GitHub (0056);
+                                     # first CHANGELOG.md's Unreleased → [0.1.0-experimental] (0057), or nothing builds
 
 pnpm install                         # JS dependencies (workspace: ui, shared/api-types)
 pnpm --filter ui dev                 # UI with live reload on :5173, /api forwarded to the daemon
@@ -467,6 +471,7 @@ Cloud sessions (Claude Code on the web): Ubuntu 24.04 on x86_64, 16 GB of RAM, 3
 - Tests: engine behaviour is tested against the in-process server in `crates/core/tests/support/` (dropped connections, no range support, slow chunks, changed ETag, `unplug()`: open connections go silent as after a network change). Speed-limit tests (`tests/throttle.rs`) assert shares and minimum durations with wide margins, never exact speeds; progress snapshots lag up to ~0.5 s, so don't measure rates over short windows. Multi-connection tests (`tests/segmented.rs`) use `HttpConfig { connections: 4, min_split: 64 KiB }`; the other test files pin one connection or use files too small to split. Tests never hit the real internet. A resumed download must be byte-identical to a clean one. Don't assert exact byte counts after an injected connection drop; assert `.part.ottie` length == `downloaded` instead. Manager tests subscribe before adding jobs, and wait for several concurrent jobs with `wait_for_all` (any order), never one after another.
 - Line endings: LF everywhere (`.gitattributes`).
 - Commits: Conventional Commits (`feat(core): …`, `fix(extension): …`), one per slice: the code, its tests and its docs (decision record + its line in `docs/decisions/README.md`, CLAUDE.md) together. Unrelated changes (e.g. a test fix found along the way) get their own.
+- Changelog (`docs/decisions/0057`): a commit that changes what people using Ottie get (a feature, a change in behaviour, a fix of something already released) adds its line under `## [Unreleased]` in `CHANGELOG.md`, in the same commit, under Added / Changed / Removed / Fixed / Security, in plain words for them, not for developers. Refactors, tests, CI, developer docs and fixes of what isn't released yet get none. A release renames Unreleased to `[<version>[-<label>]] - <date>` (as its tag), opens a new empty Unreleased and updates the links at the bottom.
 - New dependency: say what it's for and why it beats the alternatives before adding it.
 
 ## Languages and fonts
