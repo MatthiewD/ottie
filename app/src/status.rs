@@ -334,7 +334,15 @@ impl Model {
         match event {
             Event::Changed { job } => {
                 let tracked = self.jobs.remove(&job.id);
-                self.track(job, tracked, now);
+                match tracked {
+                    // Older than the list fetched as the stream reconnected
+                    // (they overlap): it would take the download back, and
+                    // its next frame would tell its end a second time.
+                    Some(tracked) if !can_follow(&tracked.state, &job.state) => {
+                        self.jobs.insert(job.id, tracked);
+                    }
+                    tracked => self.track(job, tracked, now),
+                }
             }
             Event::Progress {
                 id,
@@ -409,6 +417,17 @@ impl Model {
         sized.speed = sized_speed as u64;
         summary.progress = (sized.total > 0).then_some(sized);
         summary
+    }
+}
+
+/// Whether a download in the state `before` can be in `after` next: out of
+/// its ends, only what the daemon allows (`JobState::can_become`). Events
+/// follow each other that way, so one that can't is an old one.
+fn can_follow(before: &str, after: &str) -> bool {
+    match before {
+        "completed" | "cancelled" => after == before,
+        "failed" => matches!(after, "failed" | "queued" | "scheduled" | "cancelled"),
+        _ => true,
     }
 }
 
@@ -523,6 +542,38 @@ mod tests {
         model.reset(vec![job("c", "queued", 0)], now);
         model.reset(vec![job("c", "failed", 0)], now);
         assert!(matches!(model.news.as_slice(), [News::Failed { name, .. }] if name == "c.zip"));
+    }
+
+    #[test]
+    fn older_events_read_after_a_fresh_list_tell_nothing_again() {
+        let now = Instant::now();
+        let changed = |id, state| Event::Changed {
+            job: job(id, state, 0),
+        };
+        let mut model = Model::default();
+        model.reset(
+            vec![job("a", "downloading", 0), job("b", "retrying", 0)],
+            now,
+        );
+        // The stream reconnects: the list already has both ends...
+        model.reset(vec![job("a", "completed", 0), job("b", "failed", 0)], now);
+        assert_eq!(model.news.len(), 2);
+        model.news.clear();
+        // ...then the events sent meanwhile are read.
+        for (id, state) in [("a", "downloading"), ("a", "completed")] {
+            model.apply(changed(id, state), now);
+        }
+        for (id, state) in [("b", "connecting"), ("b", "failed")] {
+            model.apply(changed(id, state), now);
+        }
+        assert_eq!(model.news, []);
+        assert!(!model.busy());
+
+        // A failed download resumed, failing again, is news again.
+        for state in ["queued", "connecting", "failed"] {
+            model.apply(changed("b", state), now);
+        }
+        assert!(matches!(model.news.as_slice(), [News::Failed { name, .. }] if name == "b.zip"));
     }
 
     #[test]

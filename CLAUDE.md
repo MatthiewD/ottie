@@ -175,7 +175,8 @@ app/               ottie-app: Tauri 2 shell (desktop; Android later, then with c
                      sign-in links, this computer's daemon started once, the one shown (a watch the tray,
                      clipboard and status follow), switching; commands daemons / switch_daemon / add_daemon /
                      remove_daemon, the pages hear changes as the `daemons` event
-  src/status.rs      follows the events (reconnects), sums them up once a second for the tray (counts, speed, progress of those of known size),
+  src/status.rs      follows the events (reconnects; an event older than the list fetched then never takes a download
+                     back out of its end: `can_follow`), sums them up once a second for the tray (counts, speed, progress of those of known size),
                      and passes downloads that finished or failed to notify.rs: this computer's daemon always (for
                      when everything has finished), another's while shown (0053)
   src/notify.rs      notifications (0035): what to tell (each, all at once, failed), with which sound, a click
