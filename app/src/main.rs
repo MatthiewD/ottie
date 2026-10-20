@@ -22,6 +22,7 @@ mod status;
 mod texts;
 mod tray;
 
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Mutex, PoisonError};
 
 use anyhow::anyhow;
@@ -148,6 +149,11 @@ const REMOTE_PERMISSIONS: [&str; 21] = [
 #[derive(Default)]
 struct Owned(Mutex<Option<Started>>);
 
+/// The window was asked for before it existed (a second launch while Ottie
+/// starts in the tray at sign-in): it shows once made.
+#[derive(Default)]
+struct ShowRequested(AtomicBool);
+
 fn main() -> tauri::Result<()> {
     let app = tauri::Builder::default()
         // First, so a second launch only brings this window forward (and
@@ -156,6 +162,7 @@ fn main() -> tauri::Result<()> {
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_notification::init())
         .manage(Owned::default())
+        .manage(ShowRequested::default())
         .invoke_handler(tauri::generate_handler![
             player::player,
             player::set_play_with,
@@ -289,7 +296,7 @@ async fn start(app: &AppHandle, shown: bool) -> anyhow::Result<()> {
         notify::warn(app, texts.local_failed.clone(), Some(format!("{err:#}")));
     }
     let link = target.link.clone();
-    remote::show(app, target);
+    remote::show(app, target, None).map_err(|_| anyhow!("Ottie on another computer is gone"))?;
     open_window(app, link, shown)?;
     tray::start(app)?;
     clipboard::start(app);
@@ -374,7 +381,7 @@ fn open_window(app: &AppHandle, link: Url, shown: bool) -> tauri::Result<()> {
         // Room for the title bar folded as far as it goes (tabs as icons)
         // beside the window's buttons, and for a page under it.
         .min_inner_size(720.0, 480.0)
-        .visible(shown)
+        .visible(shown || requested(app))
         .initialization_script(page_script(app))
         // Only the daemons' pages: a link to elsewhere must not turn this
         // window into a browser.
@@ -395,6 +402,10 @@ fn open_window(app: &AppHandle, link: Url, shown: bool) -> tauri::Result<()> {
             NewWindowResponse::Deny
         })
         .build()?;
+    // Asked for while it was being made.
+    if requested(app) {
+        show(app);
+    }
     let hidden = window.clone();
     let handle = app.clone();
     window.on_window_event(move |event| {
@@ -417,12 +428,24 @@ fn open_window(app: &AppHandle, link: Url, shown: bool) -> tauri::Result<()> {
 /// Brings the window forward: from the tray, a second launch, or the
 /// clipboard's More….
 fn show(app: &AppHandle) {
-    if let Some(window) = app.get_webview_window(WINDOW) {
+    let mut window = app.get_webview_window(WINDOW);
+    if window.is_none() {
+        app.state::<ShowRequested>().0.store(true, Ordering::SeqCst);
+        // Made meanwhile, and maybe before it could see the request: whichever
+        // takes the request back shows it.
+        window = app.get_webview_window(WINDOW).filter(|_| requested(app));
+    }
+    if let Some(window) = window {
         // Best effort: the user can still find the window themselves.
         let _ = window.show();
         let _ = window.unminimize();
         let _ = window.set_focus();
     }
+}
+
+/// Whether the window was asked for before it existed; takes the request.
+fn requested(app: &AppHandle) -> bool {
+    app.state::<ShowRequested>().0.swap(false, Ordering::SeqCst)
 }
 
 /// The app quits: stop the daemon if we started it. One that was already

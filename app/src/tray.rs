@@ -441,9 +441,10 @@ async fn refresh(
             cancel: counting.map(|(power, seconds)| texts.cancel_soon(power, seconds)),
             status: Some(texts.status(&summary)),
             progress: summary.progress.map(|progress| texts.progress(&progress)),
-            can_pause: summary.running + summary.waiting > 0,
-            can_resume: summary.paused > 0,
+            can_pause: summary.can_pause(),
+            can_resume: summary.can_resume(),
             limit: Some(texts.limit(limit)),
+            can_limit: summary.can_limit(),
             connected: summary.connected,
             name: app
                 .state::<Switch>()
@@ -523,9 +524,11 @@ async fn refresh(
         {
             let _ = items.limit.set_text(limit);
         }
+        if now.can_limit != shown.can_limit {
+            let _ = items.limit.set_enabled(now.can_limit);
+            let _ = items.limits.set_enabled(now.can_limit);
+        }
         if now.connected != shown.connected {
-            let _ = items.limit.set_enabled(now.connected);
-            let _ = items.limits.set_enabled(now.connected);
             let _ = items.finish.set_enabled(now.connected);
             let attached = (ALWAYS_MENU || !now.connected).then(|| menu.clone());
             let _ = tray.set_menu(attached);
@@ -573,6 +576,7 @@ struct Shown {
     can_pause: bool,
     can_resume: bool,
     limit: Option<String>,
+    can_limit: bool,
     connected: bool,
     /// Another computer's Ottie shown in the window, by its name.
     name: Option<String>,

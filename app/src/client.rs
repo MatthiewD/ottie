@@ -100,6 +100,13 @@ pub struct Settings {
     pub global_limit: u64,
 }
 
+/// Who the token is (`AccessInfo`): only whether it may change anything.
+#[derive(Debug, Clone, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct Access {
+    pub read_only: bool,
+}
+
 /// Something in a text that looks like a link (`FoundLink` in the API).
 #[derive(Debug, Clone, PartialEq, Eq, Deserialize)]
 #[serde(tag = "kind", rename_all = "camelCase")]
@@ -265,6 +272,10 @@ impl Daemon {
 
     pub async fn settings(&self) -> Result<Settings> {
         Ok(self.get("settings").await?.json().await?)
+    }
+
+    pub async fn access(&self) -> Result<Access> {
+        Ok(self.get("access").await?.json().await?)
     }
 
     pub async fn categories(&self) -> Result<Vec<Category>> {

@@ -7,6 +7,7 @@
 
 use std::collections::HashSet;
 use std::path::PathBuf;
+use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::{Arc, Mutex, MutexGuard, PoisonError};
 use std::time::Duration;
 
@@ -81,6 +82,20 @@ impl List {
     fn find(&self, id: u32) -> Option<&Other> {
         self.others.iter().find(|other| other.id == id)
     }
+
+    /// Whether a switch to `id` (`None`: this computer's), asked for as
+    /// `ticket` while `latest` is the last asked for, may still happen: not
+    /// if another was asked for since (`Ok(false)`), nor if `id` was taken
+    /// off the list meanwhile.
+    fn may_show(&self, id: Option<u32>, ticket: Option<u64>, latest: u64) -> Result<bool, Refusal> {
+        if ticket.is_some_and(|ticket| ticket != latest) {
+            return Ok(false);
+        }
+        match id {
+            Some(id) if self.find(id).is_none() => Err(Refusal::NotFound),
+            _ => Ok(true),
+        }
+    }
 }
 
 /// What the pages see: the list, and which one the window shows.
@@ -136,6 +151,9 @@ pub struct Switch {
     local: tokio::sync::Mutex<Option<Arc<Daemon>>>,
     list: Mutex<List>,
     shown: watch::Sender<Option<Arc<Target>>>,
+    /// Switches asked for so far: one that waited for its daemon to answer
+    /// happens only if none was asked for since.
+    switches: AtomicU64,
     /// Origins whose pages have their permissions already.
     granted: Mutex<HashSet<String>>,
 }
@@ -148,6 +166,7 @@ impl Switch {
             local: tokio::sync::Mutex::new(None),
             list: Mutex::new(config::load(app, FILE).unwrap_or_default()),
             shown: watch::Sender::new(None),
+            switches: AtomicU64::new(0),
             granted: Mutex::new(HashSet::new()),
         }
     }
@@ -163,6 +182,11 @@ impl Switch {
             .borrow()
             .as_ref()
             .is_some_and(|target| target.id == id)
+    }
+
+    /// A switch is asked for: its ticket for `show`.
+    fn ask(&self) -> u64 {
+        self.switches.fetch_add(1, Ordering::SeqCst) + 1
     }
 
     /// Hears when the window shows another one.
@@ -269,7 +293,10 @@ pub async fn target(app: &AppHandle, id: Option<u32>) -> Result<Arc<Target>, Ref
 
 /// The window shows `target` from now on (the caller moves the window):
 /// its page gets its permissions, the tray and copied links follow it.
-pub fn show(app: &AppHandle, target: Arc<Target>) {
+/// With a `ticket` (from `Switch::ask`), only if no other switch was asked
+/// for since (else `Ok(false)`) and it's still listed: it may have been
+/// removed while it was asked whether it answers.
+pub fn show(app: &AppHandle, target: Arc<Target>, ticket: Option<u64>) -> Result<bool, Refusal> {
     let switch = app.state::<Switch>();
     let origin = target.link.origin().ascii_serialization();
     let remote = target.id.is_some() && origin != switch.local_origin();
@@ -283,10 +310,23 @@ pub fn show(app: &AppHandle, target: Arc<Target>) {
         eprintln!("ottie-app: no permissions for {origin}");
     }
     let (id, daemon) = (target.id, target.daemon.clone());
-    status::moved(app);
-    switch.shown.send_replace(Some(target.clone()));
-    // Best effort: the next start shows this computer's instead.
-    let _ = switch.change(app, |list| list.shown = id);
+    {
+        // Checked and shown at once: a removal waits, then sees it shown.
+        let mut list = switch.lock();
+        if !list.may_show(id, ticket, switch.switches.load(Ordering::SeqCst))? {
+            return Ok(false);
+        }
+        status::moved(app);
+        switch.shown.send_replace(Some(target.clone()));
+        if list.shown != id {
+            let mut next = list.clone();
+            next.shown = id;
+            // Best effort: the next start shows this computer's instead.
+            if config::save(app, FILE, &next).is_ok() {
+                *list = next;
+            }
+        }
+    }
     if id.is_some() {
         let followed = status::Followed::Remote(target);
         tauri::async_runtime::spawn(status::follow(app.clone(), daemon, followed));
@@ -295,6 +335,7 @@ pub fn show(app: &AppHandle, target: Arc<Target>) {
     popup::forget(app);
     clipboard::moved(app);
     changed(app);
+    Ok(true)
 }
 
 /// The window's page goes to the one shown.
@@ -402,13 +443,17 @@ pub fn daemons(switch: State<'_, Switch>) -> Daemons {
 /// Shows another computer's Ottie in the window, or this computer's (`None`).
 #[tauri::command]
 pub async fn switch_daemon(app: AppHandle, id: Option<u32>) -> Result<(), Refusal> {
-    if app.state::<Switch>().is_shown(id) {
+    let switch = app.state::<Switch>();
+    // Asked for first: a switch still waiting for its daemon is dropped.
+    let ticket = switch.ask();
+    if switch.is_shown(id) {
         return Ok(());
     }
     let target = target(&app, id).await?;
     let link = target.link.clone();
-    show(&app, target);
-    go(&app, link);
+    if show(&app, target, Some(ticket))? {
+        go(&app, link);
+    }
     Ok(())
 }
 
@@ -443,13 +488,15 @@ pub async fn add_daemon(app: AppHandle, name: String, link: String) -> Result<Da
 pub async fn remove_daemon(app: AppHandle, id: u32) -> Result<Daemons, Refusal> {
     let switch = app.state::<Switch>();
     if switch.is_shown(Some(id)) {
-        let local = target(&app, None).await?;
-        let link = local.link.clone();
-        show(&app, local);
-        go(&app, link);
+        switch_daemon(app.clone(), None).await?;
     }
     if !switch.change(&app, |list| list.remove(id))? {
         return Err(Refusal::NotFound);
+    }
+    // A switch to it that was already checked showed it meanwhile; none
+    // can from now on.
+    if switch.is_shown(Some(id)) {
+        switch_daemon(app.clone(), None).await?;
     }
     forget_token(id).await;
     changed(&app);
@@ -459,6 +506,25 @@ pub async fn remove_daemon(app: AppHandle, id: u32) -> Result<Daemons, Refusal> 
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn only_the_last_switch_asked_for_shows_a_listed_daemon() {
+        let mut list = List::default();
+        list.add(
+            1,
+            "NAS".into(),
+            &Url::parse("https://nas.example/").unwrap(),
+        );
+        assert_eq!(list.may_show(Some(1), Some(3), 3), Ok(true));
+        assert_eq!(list.may_show(None, Some(3), 3), Ok(true));
+        // Another was asked for while this one waited.
+        assert_eq!(list.may_show(Some(1), Some(2), 3), Ok(false));
+        // Removed while it waited.
+        assert!(list.remove(1));
+        assert_eq!(list.may_show(Some(1), Some(3), 3), Err(Refusal::NotFound));
+        // Shown at start, as asked for by nobody.
+        assert_eq!(list.may_show(None, None, 3), Ok(true));
+    }
 
     #[test]
     fn a_sign_in_link_gives_the_root_and_the_token() {

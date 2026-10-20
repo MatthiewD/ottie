@@ -11,6 +11,10 @@ What changes in Ottie from one version to the next: new features, changes and fi
 - When a time slot for all downloads lets running ones finish and another, for one category, stops them at once, that category's running downloads now stop.
 - A download that keeps failing no longer gives its place to one whose file is being moved to another folder: it took the place straight back and tried again without waiting.
 - `ottie service install` with a relative data folder (`--data-dir state`) now writes the service's log in that folder. On Windows and macOS it went to the folder the service started in, or the service couldn't start.
+- With "Quit Ottie" chosen for when everything has finished, a download added in the few seconds before it quits now keeps Ottie open.
+- Opening Ottie while it's still starting in the tray at sign-in now shows its window once it's ready. Before, nothing happened.
+- In the desktop app, another computer's Ottie removed while the window was still switching to it is no longer shown anyway, and after several switches in a row, the last one chosen is the one shown.
+- On Linux, the system's tray menu greys out Pause all, Resume all and the speed limit for another computer's Ottie added with a read-only link, as Ottie's own menu does. They did nothing.
 
 ### Security
 

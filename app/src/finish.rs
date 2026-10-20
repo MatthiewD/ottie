@@ -132,11 +132,36 @@ pub struct Finisher {
 #[derive(Default)]
 struct Counting {
     now: Option<Countdown>,
-    /// Countdowns started so far: a timer acts only if its own is still on.
+    /// Quitting, once the last notification's sound has played: the ID of
+    /// that wait, taken back if a download starts meanwhile.
+    quitting: Option<u64>,
+    /// Countdowns and quits started so far: a timer acts only if its own is
+    /// still on.
     started: u64,
     able: Option<(Instant, Able)>,
     /// The window waits to be shown until the page says how tall it is.
     waiting: bool,
+}
+
+impl Counting {
+    /// Quitting is chosen: the ID of its wait.
+    fn quit_later(&mut self) -> u64 {
+        self.started += 1;
+        self.quitting = Some(self.started);
+        self.started
+    }
+
+    /// The wait `id` is over: whether to quit still.
+    fn quits(&mut self, id: u64) -> bool {
+        self.quitting.take_if(|quitting| *quitting == id).is_some()
+    }
+
+    /// A download started again: no quitting, no countdown. Whether one
+    /// was counting down.
+    fn busy(&mut self) -> bool {
+        self.quitting = None;
+        self.now.take().is_some()
+    }
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -254,7 +279,7 @@ pub fn follow(app: &AppHandle, left: Left, ended: bool) {
         // A download started again (a slot, a start time, someone): not
         // finished after all. A choice for once is kept for then.
         Seen::Busy => {
-            if app.state::<Finisher>().lock().now.take().is_some() {
+            if app.state::<Finisher>().lock().busy() {
                 close_window(app);
                 changed(app);
             }
@@ -270,10 +295,15 @@ fn finished(app: &AppHandle, prefs: &Prefs) {
         None => {
             used_once(app);
             if action == Finish::Quit {
+                let id = app.state::<Finisher>().lock().quit_later();
                 let app = app.clone();
                 tauri::async_runtime::spawn(async move {
                     tokio::time::sleep(QUIT_AFTER).await;
-                    app.exit(0);
+                    // Unless a download started meanwhile (`Seen::Busy`).
+                    let quits = app.state::<Finisher>().lock().quits(id);
+                    if quits {
+                        app.exit(0);
+                    }
                 });
             }
         }
@@ -517,6 +547,20 @@ fn change(app: &AppHandle, change: impl FnOnce(&mut Prefs)) -> Result<Finishing,
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn a_download_started_while_waiting_to_quit_keeps_ottie_open() {
+        let mut counting = Counting::default();
+        let id = counting.quit_later();
+        assert!(!counting.busy());
+        assert!(!counting.quits(id));
+        // Finished again: only the latest wait quits.
+        let first = counting.quit_later();
+        let second = counting.quit_later();
+        assert!(!counting.quits(first));
+        assert!(counting.quits(second));
+        assert!(!counting.quits(second));
+    }
 
     #[test]
     fn finished_means_the_last_one_has_just_ended() {

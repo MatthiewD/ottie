@@ -48,9 +48,31 @@ pub struct Summary {
     pub speed: u64,
     /// The total limit; 0 = none.
     pub global_limit: u64,
+    /// The token may only look (a read-only device's): the tray offers no
+    /// actions on downloads or the limit.
+    pub read_only: bool,
     /// How far the running downloads have come; none while none of them
     /// has a known size.
     pub progress: Option<Progress>,
+}
+
+/// What the tray's actions may do; a read-only token's are greyed out, as in
+/// Ottie's own menu.
+impl Summary {
+    /// Pause all: something to pause.
+    pub fn can_pause(&self) -> bool {
+        !self.read_only && self.running + self.waiting > 0
+    }
+
+    /// Resume all: something to resume.
+    pub fn can_resume(&self) -> bool {
+        !self.read_only && self.paused > 0
+    }
+
+    /// The total limit: on, off or changed.
+    pub fn can_limit(&self) -> bool {
+        self.connected && !self.read_only
+    }
 }
 
 /// The running downloads whose size is known, together.
@@ -220,8 +242,10 @@ async fn load(
 ) -> Result<()> {
     let jobs = daemon.jobs().await?;
     let settings = daemon.settings().await?;
+    let access = daemon.access().await?;
     model.reset(jobs, Instant::now());
     model.global_limit = settings.global_limit;
+    model.read_only = access.read_only;
     if followed.shown(app) {
         remember_limit(app, settings.global_limit);
     }
@@ -260,6 +284,7 @@ fn remember_limit(app: &AppHandle, limit: u64) {
 struct Model {
     jobs: HashMap<String, Tracked>,
     global_limit: u64,
+    read_only: bool,
     /// Downloads that finished or failed since notifications last looked.
     news: Vec<News>,
 }
@@ -356,6 +381,7 @@ impl Model {
         let mut summary = Summary {
             connected: true,
             global_limit: self.global_limit,
+            read_only: self.read_only,
             ..Summary::default()
         };
         let mut speed = 0.0;
@@ -454,6 +480,23 @@ mod tests {
     }
 
     #[test]
+    fn a_read_only_token_gets_no_actions() {
+        let busy = Summary {
+            connected: true,
+            running: 1,
+            paused: 1,
+            ..Summary::default()
+        };
+        assert!(busy.can_pause() && busy.can_resume() && busy.can_limit());
+        let looking = Summary {
+            read_only: true,
+            ..busy
+        };
+        assert!(!looking.can_pause() && !looking.can_resume() && !looking.can_limit());
+        assert!(!Summary::default().can_limit());
+    }
+
+    #[test]
     fn finishing_and_failing_are_news_except_in_the_first_list() {
         let now = Instant::now();
         let mut model = Model::default();
@@ -520,6 +563,7 @@ mod tests {
                 paused: 1,
                 speed: 0,
                 global_limit: 512,
+                read_only: false,
                 progress: None,
             }
         );
