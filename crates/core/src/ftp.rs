@@ -520,6 +520,14 @@ impl Transfer {
 pub(crate) async fn run_in(
     env: &Env<'_>,
     dl: &mut Download,
+    on_event: impl FnMut(Event),
+) -> Result<Outcome, Error> {
+    transfer::ended(steps(env, dl, on_event).await)
+}
+
+async fn steps(
+    env: &Env<'_>,
+    dl: &mut Download,
     mut on_event: impl FnMut(Event),
 ) -> Result<Outcome, Error> {
     let link = Arc::new(Link::new(dl, env.config.stall_timeout)?);
@@ -550,7 +558,7 @@ pub(crate) async fn run_in(
             }
         }
         Some(offset) => {
-            let (ftp, facts) = connect_for_facts(&link).await?;
+            let (ftp, facts) = transfer::step(env.cancel, connect_for_facts(&link)).await?;
             if facts.validator != dl.validator {
                 RestartReason::RemoteChanged
             } else if !facts.ranges {
@@ -562,7 +570,7 @@ pub(crate) async fn run_in(
                 started(dl, &name, &mut on_event);
                 return complete(dl, &name).await;
             } else {
-                let transfer = link.retrieve(ftp, offset).await?;
+                let transfer = transfer::step(env.cancel, link.retrieve(ftp, offset)).await?;
                 let file = OpenOptions::new().append(true).open(&part).await?;
                 dl.downloaded = offset;
                 started(dl, &name, &mut on_event);
@@ -573,7 +581,7 @@ pub(crate) async fn run_in(
     };
 
     restarting(dl, reason, &mut on_event).await?;
-    let (ftp, facts) = connect_for_facts(&link).await?;
+    let (ftp, facts) = transfer::step(env.cancel, connect_for_facts(&link)).await?;
     learn(dl, &facts);
     let file = File::create(&part).await?;
     transfer(env, &link, ftp, facts.ranges, file, dl, name, &mut on_event).await
@@ -586,7 +594,7 @@ async fn fresh(
     dl: &mut Download,
     on_event: &mut impl FnMut(Event),
 ) -> Result<Outcome, Error> {
-    let (ftp, facts) = connect_for_facts(link).await?;
+    let (ftp, facts) = transfer::step(env.cancel, connect_for_facts(link)).await?;
     let (name, file) = transfer::reserve(dl, suggested_name(&dl.url)).await?;
     tracing::debug!(url = %redact(&dl.url), %name, "starting download");
     learn(dl, &facts);
@@ -618,7 +626,8 @@ async fn transfer(
     // the middle of a multi-connection download.
     let mut restarted_mid_run = false;
     loop {
-        let first = Body::Ftp(Box::new(link.retrieve(ftp, 0).await?));
+        let first = transfer::step(env.cancel, link.retrieve(ftp, 0)).await?;
+        let first = Body::Ftp(Box::new(first));
         let Some(total) = splittable(env.config, dl, ranges) else {
             started(dl, &name, on_event);
             tracing::debug!(%name, "one connection");
@@ -639,7 +648,7 @@ async fn transfer(
                 restarted_mid_run = true;
                 restarting(dl, reason, on_event).await?;
                 let facts;
-                (ftp, facts) = connect_for_facts(link).await?;
+                (ftp, facts) = transfer::step(env.cancel, connect_for_facts(link)).await?;
                 learn(dl, &facts);
                 ranges = facts.ranges;
                 file = File::create(&part).await?;

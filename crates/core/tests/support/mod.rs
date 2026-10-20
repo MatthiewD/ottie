@@ -46,6 +46,9 @@ pub struct Behavior {
     pub retry_after: Option<u64>,
     /// After this many body bytes, stop sending without closing, once.
     pub stall_after: Option<usize>,
+    /// Never answer the next this many requests, not even with headers;
+    /// their connections stay open.
+    pub silent_next: usize,
 }
 
 #[derive(Debug, Clone)]
@@ -93,6 +96,7 @@ impl TestServer {
                 fail_from_start: None,
                 retry_after: None,
                 stall_after: None,
+                silent_next: 0,
             },
             requests: Vec::new(),
             connections: HashSet::new(),
@@ -163,7 +167,7 @@ async fn serve_file(
     let text = |name| headers.get(name).map(|v| v.to_str().unwrap().to_owned());
     let range = text(RANGE);
     let if_range = text(IF_RANGE);
-    let (body, etag, ranges, pacing, drop_after, disposition, failure) = {
+    let (body, etag, ranges, pacing, drop_after, disposition, failure, silent) = {
         let mut shared = state.lock().unwrap();
         shared.requests.push(RecordedRequest {
             range: range.clone(),
@@ -173,6 +177,8 @@ async fn serve_file(
             user_agent: text(USER_AGENT),
         });
         let b = &mut shared.behavior;
+        let silent = b.silent_next > 0;
+        b.silent_next = b.silent_next.saturating_sub(1);
         let drop_after = b.drop_after.take();
         let pacing = Pacing {
             delay: b.chunk_delay,
@@ -198,8 +204,12 @@ async fn serve_file(
             drop_after,
             disposition,
             failure,
+            silent,
         )
     };
+    if silent {
+        std::future::pending::<()>().await;
+    }
     if let Some((status, retry_after)) = failure {
         let mut response = Response::builder().status(status);
         if let Some(secs) = retry_after {

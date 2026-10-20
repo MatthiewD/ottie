@@ -32,6 +32,32 @@ pub(crate) struct Env<'a> {
     pub cancel: &'a CancellationToken,
 }
 
+/// `work` (a request until its answer's headers, an FTP login, a command),
+/// unless `cancel` fires first: then [`Error::Stopped`], and what was under
+/// way is dropped with its connection, never used again. Every step before
+/// the bytes flow goes through it, so a stop never waits for a server that
+/// doesn't answer (up to the stall timeout).
+pub(crate) async fn step<T>(
+    cancel: &CancellationToken,
+    work: impl Future<Output = Result<T, Error>>,
+) -> Result<T, Error> {
+    tokio::select! {
+        biased;
+        () = cancel.cancelled() => Err(Error::Stopped),
+        done = work => done,
+    }
+}
+
+/// A run's end as its caller sees it: stopped while asking the server is
+/// paused, as a stop while the bytes flow is. What's on disk then is what
+/// an error at that point would leave, which a later run takes up.
+pub(crate) fn ended(result: Result<Outcome, Error>) -> Result<Outcome, Error> {
+    match result {
+        Err(Error::Stopped) => Ok(Outcome::Paused),
+        other => other,
+    }
+}
+
 /// An answer's bytes, as they arrive.
 pub(crate) enum Body {
     Http(Response),

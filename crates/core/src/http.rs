@@ -132,6 +132,14 @@ pub async fn run(
 pub(crate) async fn run_in(
     env: &Env<'_>,
     dl: &mut Download,
+    on_event: impl FnMut(Event),
+) -> Result<Outcome, Error> {
+    transfer::ended(steps(env, dl, on_event).await)
+}
+
+async fn steps(
+    env: &Env<'_>,
+    dl: &mut Download,
     mut on_event: impl FnMut(Event),
 ) -> Result<Outcome, Error> {
     let config = env.config;
@@ -318,14 +326,14 @@ async fn try_resume(
     offset: u64,
     validator: &Validator,
 ) -> Result<Resume, Error> {
-    let response = get(
+    let request = get(
         env.client,
         env.config.stall_timeout,
         &dl.url,
         Some((offset, None)),
         Some(validator),
-    )
-    .await?;
+    );
+    let response = transfer::step(env.cancel, request).await?;
     match response.status() {
         StatusCode::PARTIAL_CONTENT => {
             if !content_range_matches(response.headers(), offset, None, dl.total) {
@@ -456,14 +464,14 @@ pub(crate) fn status_error(response: &Response) -> Error {
 /// Asks for `bytes=0-`: a 206 answer proves the server really supports
 /// ranges, which the `Accept-Ranges` header alone doesn't.
 async fn get_from_start(env: &Env<'_>, url: &Url) -> Result<Response, Error> {
-    let response = get(
+    let request = get(
         env.client,
         env.config.stall_timeout,
         url,
         Some((0, None)),
         None,
-    )
-    .await?;
+    );
+    let response = transfer::step(env.cancel, request).await?;
     match response.status() {
         StatusCode::OK => Ok(response),
         StatusCode::PARTIAL_CONTENT if content_range_matches(response.headers(), 0, None, None) => {
@@ -471,7 +479,8 @@ async fn get_from_start(env: &Env<'_>, url: &Url) -> Result<Response, Error> {
         }
         // Some servers refuse any range on an empty file.
         StatusCode::RANGE_NOT_SATISFIABLE => {
-            let response = get(env.client, env.config.stall_timeout, url, None, None).await?;
+            let request = get(env.client, env.config.stall_timeout, url, None, None);
+            let response = transfer::step(env.cancel, request).await?;
             match response.status() {
                 StatusCode::OK => Ok(response),
                 _ => Err(status_error(&response)),

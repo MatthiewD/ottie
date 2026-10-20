@@ -294,6 +294,53 @@ async fn pause_is_prompt_on_a_slow_server() {
     assert_eq!(result.unwrap(), Outcome::Paused);
 }
 
+/// Runs while the server never answers the request, and pauses 200 ms in:
+/// the run must stop at once, not after the stall timeout (60 s).
+async fn pause_before_the_answer(s: &Setup, dl: &mut Download) {
+    s.server.configure(|b| b.silent_next = 1);
+    let cancel = CancellationToken::new();
+    let pauser = cancel.clone();
+    tokio::spawn(async move {
+        tokio::time::sleep(Duration::from_millis(200)).await;
+        pauser.cancel();
+    });
+    let throttle = Throttle::unlimited();
+    let result = tokio::time::timeout(
+        Duration::from_secs(5),
+        run(&s.client, &single(), dl, &throttle, &cancel, |_| {}),
+    )
+    .await
+    .expect("the pause waited for the server");
+    assert_eq!(result.unwrap(), Outcome::Paused);
+}
+
+#[tokio::test]
+async fn pause_is_prompt_before_the_server_answers() {
+    let s = setup().await;
+    let mut dl = s.download("/files/data.bin");
+    pause_before_the_answer(&s, &mut dl).await;
+    assert_eq!(dl.file_name, None, "named before any answer");
+
+    let (result, _) = run_collect(&s.client, &mut dl, None).await;
+    assert_completed_with(result.unwrap(), &s.data);
+}
+
+#[tokio::test]
+async fn pause_is_prompt_while_a_resume_waits_for_the_server() {
+    let s = setup().await;
+    let mut dl = s.download("/files/data.bin");
+    pause_midway(&s, &mut dl).await;
+    let before = dl.downloaded;
+    pause_before_the_answer(&s, &mut dl).await;
+    assert_eq!(dl.downloaded, before);
+    let part_len = std::fs::metadata(dl.part_path().unwrap()).unwrap().len();
+    assert_eq!(part_len, before);
+
+    let (result, events) = run_collect(&s.client, &mut dl, None).await;
+    assert_completed_with(result.unwrap(), &s.data);
+    assert_eq!(restarts(&events), []);
+}
+
 #[tokio::test]
 async fn existing_file_gets_a_numbered_name() {
     let s = setup().await;

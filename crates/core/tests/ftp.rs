@@ -108,6 +108,24 @@ impl Setup {
         );
     }
 
+    /// Runs, and pauses after `after`: the run must end at once, whatever
+    /// the server is doing (not after the 10 s stall timeout).
+    async fn pause_after(&self, dl: &mut Download, after: Duration) -> Result<Outcome, Error> {
+        let backend = NativeBackend::with_config(ONE).unwrap();
+        let cancel = CancellationToken::new();
+        let pauser = cancel.clone();
+        tokio::spawn(async move {
+            tokio::time::sleep(after).await;
+            pauser.cancel();
+        });
+        let (throttle, playback) = (Throttle::unlimited(), Playback::none());
+        let mut on_event = |_| {};
+        let run = backend.run(dl, &throttle, &playback, &cancel, &mut on_event);
+        tokio::time::timeout(Duration::from_secs(5), run)
+            .await
+            .expect("the pause waited for the server")
+    }
+
     fn part_len(&self) -> u64 {
         let part = self.dir.path().join(format!("file.bin{PART_SUFFIX}"));
         std::fs::metadata(part).unwrap().len()
@@ -223,6 +241,38 @@ async fn resumes_where_it_stopped() {
             .any(|c| c.starts_with("REST ") && c != "REST 0"),
         "{commands:?}"
     );
+}
+
+#[tokio::test]
+async fn pause_is_prompt_while_the_server_doesnt_answer_the_login() {
+    let s = setup(300 * 1024, |b| b.silent_on = Some("USER")).await;
+    let mut dl = s.download("ftp", None);
+    let result = s.pause_after(&mut dl, Duration::from_millis(200)).await;
+    assert_eq!(result.unwrap(), Outcome::Paused);
+    assert_eq!(dl.file_name, None, "named before any answer");
+
+    s.server.configure(|b| b.silent_on = None);
+    let (result, _) = s.run(ONE, &mut dl, None).await;
+    s.assert_complete(result);
+}
+
+#[tokio::test]
+async fn pause_is_prompt_while_a_resume_waits_for_the_server() {
+    let s = setup(300 * 1024, |b| b.drop_after = Some(100 * 1024)).await;
+    let mut dl = s.download("ftp", None);
+    let (result, _) = s.run(ONE, &mut dl, None).await;
+    assert!(result.unwrap_err().is_retryable());
+    let before = dl.downloaded;
+
+    s.server.configure(|b| b.silent_on = Some("REST"));
+    let result = s.pause_after(&mut dl, Duration::from_millis(200)).await;
+    assert_eq!(result.unwrap(), Outcome::Paused);
+    assert_eq!((dl.downloaded, s.part_len()), (before, before));
+
+    s.server.configure(|b| b.silent_on = None);
+    let (result, events) = s.run(ONE, &mut dl, None).await;
+    s.assert_complete(result);
+    assert!(!events.iter().any(|e| matches!(e, Event::Restarted(_))));
 }
 
 #[tokio::test]

@@ -69,6 +69,12 @@ pub enum Error {
     #[error("the file kept changing on the server while downloading")]
     RemoteUnstable,
 
+    /// A stop (pause, cancel, shutdown…) came while a run was still asking
+    /// the server for the file (a request, a login). Never leaves the
+    /// backend: its run ends as paused (`transfer::step`).
+    #[error("stopped while asking the server")]
+    Stopped,
+
     /// The download's task panicked: a bug in Ottie. The text is the
     /// panic's message.
     #[error("Ottie hit a bug and stopped this download: {0}")]

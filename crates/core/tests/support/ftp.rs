@@ -51,6 +51,9 @@ pub struct Behavior {
     pub drop_after: Option<usize>,
     /// Pause before each 16 KiB chunk.
     pub chunk_delay: Option<Duration>,
+    /// A command (`"SIZE"`, `"RETR"`…) never answered; the connection
+    /// stays open.
+    pub silent_on: Option<&'static str>,
 }
 
 impl Default for Behavior {
@@ -65,6 +68,7 @@ impl Default for Behavior {
             max_logins: None,
             drop_after: None,
             chunk_delay: None,
+            silent_on: None,
         }
     }
 }
@@ -194,7 +198,14 @@ async fn session(
             } else {
                 line.clone()
             };
-            state.lock().unwrap().commands.push(shown);
+            let silent = {
+                let mut shared = state.lock().unwrap();
+                shared.commands.push(shown);
+                shared.behavior.silent_on == Some(command.as_str())
+            };
+            if silent {
+                std::future::pending::<()>().await;
+            }
             match command.as_str() {
                 "FEAT" => {
                     let text = {
