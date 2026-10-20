@@ -94,6 +94,7 @@
 	"reason_job_not_found": "Dak it-tniżżil m’għadux jeżisti.",
 	"reason_invalid_transition": "Dan mhux possibbli fl-istat attwali tat-tniżżil.",
 	"reason_stopping": "Ottie qed jintefa.",
+	"reason_storage_failed": "Ottie ma setax jissejvja dan, għalhekk xejn ma nbidel. Ħelles ftit spazju fuq id-diska jew iċċekkja d-drive.",
 	"col_name": "Isem",
 	"col_size": "Daqs",
 	"col_progress": "Progress",

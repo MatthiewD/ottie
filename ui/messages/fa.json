@@ -94,6 +94,7 @@
 	"reason_job_not_found": "این بارگیری دیگر وجود ندارد.",
 	"reason_invalid_transition": "این کار در وضعیت فعلی بارگیری ممکن نیست.",
 	"reason_stopping": "Ottie در حال خاموش شدن است.",
+	"reason_storage_failed": "Ottie نتوانست این را ذخیره کند، پس چیزی تغییر نکرد. کمی فضای دیسک آزاد کنید یا درایو را بررسی کنید.",
 	"col_name": "نام",
 	"col_size": "اندازه",
 	"col_progress": "پیشرفت",

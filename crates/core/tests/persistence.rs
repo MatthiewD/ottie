@@ -54,6 +54,15 @@ impl Setup {
         Manager::start(backend, store).await.unwrap()
     }
 
+    /// A job that waits an hour before it starts: nothing downloads.
+    async fn add_later(&self, manager: &Manager) -> Result<JobId, Error> {
+        let url = self.server.url("/files/data.bin");
+        let later = std::time::SystemTime::now() + Duration::from_secs(3600);
+        manager
+            .add(NewJob::new(url).in_dir(&self.downloads).starting_at(later))
+            .await
+    }
+
     async fn add(&self, manager: &Manager) -> JobId {
         let url = self.server.url("/files/data.bin");
         manager
@@ -391,24 +400,29 @@ async fn removed_jobs_stay_removed_and_their_ids_are_not_reused() {
     assert!(next > removed, "{next} reuses or precedes {removed}");
 }
 
-/// Makes every write of the settings fail, as a full disk would, until
+/// Makes these writes to `table` fail, as a full disk would, until
 /// `writes_work` (through a second connection to the same database).
-fn writes_fail(db: &std::path::Path) {
+fn writes_fail(db: &std::path::Path, table: &str, events: &[&str]) {
     let conn = rusqlite::Connection::open(db).unwrap();
-    for (name, event) in [("full_insert", "INSERT"), ("full_update", "UPDATE")] {
+    for event in events {
         conn.execute_batch(&format!(
-            "CREATE TRIGGER {name} BEFORE {event} ON settings \
+            "CREATE TRIGGER fail_{table}_{event} BEFORE {event} ON {table} \
              BEGIN SELECT RAISE(ABORT, 'test: the disk is full'); END;"
         ))
         .unwrap();
     }
 }
 
-fn writes_work(db: &std::path::Path) {
+fn writes_work(db: &std::path::Path, table: &str, events: &[&str]) {
     let conn = rusqlite::Connection::open(db).unwrap();
-    conn.execute_batch("DROP TRIGGER full_insert; DROP TRIGGER full_update;")
-        .unwrap();
+    for event in events {
+        conn.execute_batch(&format!("DROP TRIGGER fail_{table}_{event};"))
+            .unwrap();
+    }
 }
+
+/// Every way a row of the settings is written.
+const SAVING: [&str; 2] = ["INSERT", "UPDATE"];
 
 /// Waits for settings whose `storage_failing` is `failing`.
 async fn wait_for_storage(
@@ -438,8 +452,10 @@ async fn a_failing_database_is_told_and_shutdown_says_so() {
         ..SettingsChange::default()
     };
 
-    writes_fail(&s.db);
-    manager.change_settings(change(5)).await.unwrap();
+    // A change in the background: the progress of a download.
+    writes_fail(&s.db, "jobs", &SAVING);
+    let id = s.add_later(&manager).await.unwrap_err();
+    assert!(matches!(id, Error::StorageFailed(_)), "{id:?}");
     let told = wait_for_storage(&mut events, true).await;
     assert!(
         told.storage_failing
@@ -451,16 +467,74 @@ async fn a_failing_database_is_told_and_shutdown_says_so() {
     assert!(manager.settings().await.unwrap().storage_failing.is_some());
 
     // Working again: said too.
-    writes_work(&s.db);
+    writes_work(&s.db, "jobs", &SAVING);
     manager.change_settings(change(6)).await.unwrap();
     wait_for_storage(&mut events, false).await;
 
-    // A shutdown whose last saves failed says so.
-    writes_fail(&s.db);
-    manager.change_settings(change(7)).await.unwrap();
+    // A shutdown whose last saves failed says so: here a job's, which was
+    // queued (a scheduled one is saved as its time is cleared).
+    let id = s.add_later(&manager).await.unwrap();
+    writes_fail(&s.db, "jobs", &SAVING);
+    let clear = JobChange {
+        start_at: Some(None),
+        ..JobChange::default()
+    };
+    manager.change_job(id, clear).await.unwrap();
     let err = manager.shutdown().await.unwrap_err();
     assert!(
         matches!(&err, Error::StorageFailed(text) if text.contains("the disk is full")),
         "{err:?}"
     );
+}
+
+#[tokio::test]
+async fn a_change_that_cant_be_saved_isnt_made() {
+    let s = setup().await;
+    let manager = s.launch().await;
+    let failed = |result: Result<(), Error>| {
+        assert!(matches!(result, Err(Error::StorageFailed(_))), "{result:?}");
+    };
+
+    writes_fail(&s.db, "settings", &SAVING);
+    let change = SettingsChange {
+        max_concurrent: Some(5),
+        ..SettingsChange::default()
+    };
+    failed(manager.change_settings(change).await.map(drop));
+    assert_eq!(manager.settings().await.unwrap().max_concurrent, 3);
+    writes_work(&s.db, "settings", &SAVING);
+
+    writes_fail(&s.db, "jobs", &["INSERT"]);
+    failed(s.add_later(&manager).await.map(drop));
+    let one = s.server.url("/files/one.bin");
+    let many = vec![NewJob::new(one).in_dir(&s.downloads)];
+    failed(manager.add_many(many).await.map(drop));
+    assert!(manager.list().await.unwrap().is_empty());
+    writes_work(&s.db, "jobs", &["INSERT"]);
+
+    let kept = s.add_later(&manager).await.unwrap();
+    writes_fail(&s.db, "jobs", &["DELETE"]);
+    failed(manager.remove(kept).await);
+    assert_eq!(manager.list().await.unwrap().len(), 1, "still listed");
+    writes_work(&s.db, "jobs", &["DELETE"]);
+
+    writes_fail(&s.db, "categories", &["INSERT"]);
+    let films = CategorySettings::named("Films");
+    failed(manager.add_category(films).await.map(drop));
+    let names: Vec<String> = manager
+        .categories()
+        .await
+        .unwrap()
+        .into_iter()
+        .map(|c| c.settings.name)
+        .collect();
+    assert!(!names.contains(&"Films".to_owned()), "{names:?}");
+    writes_work(&s.db, "categories", &["INSERT"]);
+    manager.shutdown().await.unwrap();
+
+    // What it said is what the database holds.
+    let manager = s.launch().await;
+    assert_eq!(manager.settings().await.unwrap().max_concurrent, 3);
+    let ids: Vec<JobId> = manager.list().await.unwrap().iter().map(|j| j.id).collect();
+    assert_eq!(ids, [kept]);
 }

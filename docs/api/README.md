@@ -213,7 +213,7 @@ curl -H "Authorization: Bearer $TOKEN" -H 'Content-Type: application/json' \
 
 ## When saving fails
 
-While Ottie can't write to its database (a full disk, a drive gone), `storageFailing` in `GET /settings` and in every `settingsChanged` holds the last error's English text, and it's `null` again once writing works. Changes made meanwhile may be lost when Ottie stops: show it, as the web UI does with a banner.
+While Ottie can't write to its database (a full disk, a drive gone), `storageFailing` in `GET /settings` and in every `settingsChanged` holds the last error's English text, and it's `null` again once writing works. Downloads' progress made meanwhile may be lost when Ottie stops: show it, as the web UI does with a banner. A request that changes something (adding or removing downloads, settings, categories, views, time slots, certificates) is answered only once it's saved: if it can't be, it's refused with `500 storageFailed` and nothing changed.
 
 ## The first-start setup
 

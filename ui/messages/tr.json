@@ -94,6 +94,7 @@
 	"reason_job_not_found": "Bu indirme artık yok.",
 	"reason_invalid_transition": "İndirmenin şu anki durumunda bu mümkün değil.",
 	"reason_stopping": "Ottie kapanıyor.",
+	"reason_storage_failed": "Ottie bunu kaydedemedi, bu yüzden hiçbir şey değişmedi. Diskte yer açın veya sürücüyü kontrol edin.",
 	"col_name": "Ad",
 	"col_size": "Boyut",
 	"col_progress": "İlerleme",

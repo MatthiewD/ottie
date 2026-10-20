@@ -94,6 +94,7 @@
 	"reason_job_not_found": "該下載已不存在。",
 	"reason_invalid_transition": "下載目前的狀態不允許這樣做。",
 	"reason_stopping": "Ottie 正在關閉。",
+	"reason_storage_failed": "Ottie 無法儲存此變更，因此沒有任何改變。請釋出一些磁碟空間，或檢查磁碟機。",
 	"col_name": "名稱",
 	"col_size": "大小",
 	"col_progress": "進度",

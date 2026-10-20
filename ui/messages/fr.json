@@ -94,6 +94,7 @@
 	"reason_job_not_found": "Ce téléchargement n’existe plus.",
 	"reason_invalid_transition": "Ce n’est pas possible dans l’état actuel du téléchargement.",
 	"reason_stopping": "Ottie est en train de s’arrêter.",
+	"reason_storage_failed": "Ottie n’a pas pu enregistrer cela, donc rien n’a changé. Libérez de l’espace disque ou vérifiez le disque.",
 	"col_name": "Nom",
 	"col_size": "Taille",
 	"col_progress": "Progression",

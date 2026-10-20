@@ -94,6 +94,7 @@
 	"reason_job_not_found": "ያ ውርድ ከአሁን በኋላ የለም።",
 	"reason_invalid_transition": "ያ በውርዱ የአሁኑ ሁኔታ አይቻልም።",
 	"reason_stopping": "Ottie እየተዘጋ ነው።",
+	"reason_storage_failed": "Ottie ይህን ማስቀመጥ አልቻለም፤ ስለዚህ ምንም አልተለወጠም። የዲስክ ቦታ ያስለቅቁ ወይም ድራይቩን ይፈትሹ።",
 	"col_name": "ስም",
 	"col_size": "መጠን",
 	"col_progress": "ሂደት",

@@ -94,6 +94,7 @@
 	"reason_job_not_found": "このダウンロードはもう存在しません。",
 	"reason_invalid_transition": "ダウンロードの現在の状態ではできません。",
 	"reason_stopping": "Ottie は終了処理中です。",
+	"reason_storage_failed": "Ottie はこれを保存できなかったため、何も変更されていません。ディスクの空き容量を増やすか、ドライブを確認してください。",
 	"col_name": "名前",
 	"col_size": "サイズ",
 	"col_progress": "進行状況",

@@ -94,6 +94,7 @@
 	"reason_job_not_found": "Die download bestaat niet meer.",
 	"reason_invalid_transition": "Dat kan niet in de huidige toestand van de download.",
 	"reason_stopping": "Ottie wordt afgesloten.",
+	"reason_storage_failed": "Ottie kon dit niet opslaan, dus er is niets veranderd. Maak schijfruimte vrij of controleer de schijf.",
 	"col_name": "Naam",
 	"col_size": "Grootte",
 	"col_progress": "Voortgang",

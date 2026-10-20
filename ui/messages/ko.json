@@ -94,6 +94,7 @@
 	"reason_job_not_found": "이 다운로드는 더 이상 없습니다.",
 	"reason_invalid_transition": "다운로드의 현재 상태에서는 할 수 없습니다.",
 	"reason_stopping": "Ottie가 종료하는 중입니다.",
+	"reason_storage_failed": "Ottie가 이것을 저장하지 못해 아무것도 바뀌지 않았습니다. 디스크 공간을 확보하거나 드라이브를 확인하세요.",
 	"col_name": "이름",
 	"col_size": "크기",
 	"col_progress": "진행률",

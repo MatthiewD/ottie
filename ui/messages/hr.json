@@ -94,6 +94,7 @@
 	"reason_job_not_found": "To preuzimanje više ne postoji.",
 	"reason_invalid_transition": "To nije moguće u trenutačnom stanju preuzimanja.",
 	"reason_stopping": "Ottie se gasi.",
+	"reason_storage_failed": "Ottie to nije mogao spremiti pa se ništa nije promijenilo. Oslobodite prostor na disku ili provjerite pogon.",
 	"col_name": "Naziv",
 	"col_size": "Veličina",
 	"col_progress": "Napredak",

@@ -94,6 +94,7 @@
 	"reason_job_not_found": "Wannan saukewar ba ta nan kuma.",
 	"reason_invalid_transition": "Hakan ba zai yiwu ba a yanayin saukewar na yanzu.",
 	"reason_stopping": "Ottie na rufewa.",
+	"reason_storage_failed": "Ottie bai iya adana wannan ba, don haka babu abin da ya canza. Ka samar da sarari a faifai ko ka duba na’urar ajiya.",
 	"col_name": "Suna",
 	"col_size": "Girma",
 	"col_progress": "Ci gaba",

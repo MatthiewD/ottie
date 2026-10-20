@@ -94,6 +94,7 @@
 	"reason_job_not_found": "Níl an íoslódáil sin ann a thuilleadh.",
 	"reason_invalid_transition": "Ní féidir é sin a dhéanamh i staid reatha na híoslódála.",
 	"reason_stopping": "Tá Ottie ag múchadh.",
+	"reason_storage_failed": "Níorbh fhéidir le Ottie é seo a shábháil, mar sin níor athraigh aon rud. Saor spás diosca nó seiceáil an tiomántán.",
 	"col_name": "Ainm",
 	"col_size": "Méid",
 	"col_progress": "Dul chun cinn",

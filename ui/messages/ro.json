@@ -94,6 +94,7 @@
 	"reason_job_not_found": "Această descărcare nu mai există.",
 	"reason_invalid_transition": "Nu este posibil în starea actuală a descărcării.",
 	"reason_stopping": "Ottie se oprește.",
+	"reason_storage_failed": "Ottie nu a putut salva asta, așa că nu s-a schimbat nimic. Eliberați spațiu pe disc sau verificați unitatea.",
 	"col_name": "Nume",
 	"col_size": "Dimensiune",
 	"col_progress": "Progres",

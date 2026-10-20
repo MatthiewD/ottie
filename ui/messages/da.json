@@ -94,6 +94,7 @@
 	"reason_job_not_found": "Den download findes ikke længere.",
 	"reason_invalid_transition": "Det er ikke muligt i downloadens nuværende tilstand.",
 	"reason_stopping": "Ottie lukker ned.",
+	"reason_storage_failed": "Ottie kunne ikke gemme dette, så intet blev ændret. Frigør diskplads, eller tjek drevet.",
 	"col_name": "Navn",
 	"col_size": "Størrelse",
 	"col_progress": "Status",

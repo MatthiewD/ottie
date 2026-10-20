@@ -94,6 +94,7 @@
 	"reason_job_not_found": "یہ ڈاؤن لوڈ اب موجود نہیں۔",
 	"reason_invalid_transition": "ڈاؤن لوڈ کی موجودہ حالت میں یہ ممکن نہیں۔",
 	"reason_stopping": "Ottie بند ہو رہا ہے۔",
+	"reason_storage_failed": "Ottie اسے محفوظ نہیں کر سکا، اس لیے کچھ نہیں بدلا۔ ڈسک پر کچھ جگہ خالی کریں یا ڈرائیو جانچیں۔",
 	"col_name": "نام",
 	"col_size": "سائز",
 	"col_progress": "پیش رفت",

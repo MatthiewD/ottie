@@ -94,6 +94,7 @@
 	"reason_job_not_found": "Toto stahování už neexistuje.",
 	"reason_invalid_transition": "V současném stavu stahování to není možné.",
 	"reason_stopping": "Ottie se vypíná.",
+	"reason_storage_failed": "Ottie to nemohl uložit, takže se nic nezměnilo. Uvolněte místo na disku nebo zkontrolujte jednotku.",
 	"col_name": "Název",
 	"col_size": "Velikost",
 	"col_progress": "Průběh",

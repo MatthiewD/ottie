@@ -94,6 +94,7 @@
 	"reason_job_not_found": "Essa transferência já não existe.",
 	"reason_invalid_transition": "Isso não é possível no estado atual da transferência.",
 	"reason_stopping": "O Ottie está a encerrar.",
+	"reason_storage_failed": "O Ottie não conseguiu guardar isto, por isso nada mudou. Liberte espaço em disco ou verifique a unidade.",
 	"col_name": "Nome",
 	"col_size": "Tamanho",
 	"col_progress": "Progresso",

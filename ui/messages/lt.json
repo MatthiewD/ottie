@@ -94,6 +94,7 @@
 	"reason_job_not_found": "Šio atsisiuntimo nebėra.",
 	"reason_invalid_transition": "Dabartinėje atsisiuntimo būsenoje tai neįmanoma.",
 	"reason_stopping": "Ottie išsijungia.",
+	"reason_storage_failed": "Ottie negalėjo to išsaugoti, todėl niekas nepasikeitė. Atlaisvinkite vietos diske arba patikrinkite diską.",
 	"col_name": "Pavadinimas",
 	"col_size": "Dydis",
 	"col_progress": "Eiga",

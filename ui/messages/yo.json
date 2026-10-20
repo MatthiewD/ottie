@@ -94,6 +94,7 @@
 	"reason_job_not_found": "Ìgbàsílẹ̀ yẹn kò sí mọ́.",
 	"reason_invalid_transition": "Ìyẹn kò ṣeé ṣe ní ipò ìgbàsílẹ̀ náà lọ́wọ́lọ́wọ́.",
 	"reason_stopping": "Ottie ń pa.",
+	"reason_storage_failed": "Ottie kò lè fi èyí pamọ́, nítorí náà kò sí ohun tó yí padà. Ṣe àyè díẹ̀ sílẹ̀ lórí díìsì tàbí ṣàyẹ̀wò ẹ̀rọ ìpamọ́.",
 	"col_name": "Orúkọ",
 	"col_size": "Ìwọ̀n",
 	"col_progress": "Ìlọsíwájú",

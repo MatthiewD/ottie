@@ -130,6 +130,8 @@ export function explainRefusal(
 			return m.reason_invalid_slot_order({}, options);
 		case 'stopping':
 			return m.reason_stopping({}, options);
+		case 'storageFailed':
+			return m.reason_storage_failed({}, options);
 		case 'categoryNotFound':
 			return m.reason_category_not_found({}, options);
 		case 'invalidCategoryName':

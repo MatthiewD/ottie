@@ -94,6 +94,7 @@
 	"reason_job_not_found": "Tätä latausta ei enää ole.",
 	"reason_invalid_transition": "Se ei ole mahdollista latauksen nykyisessä tilassa.",
 	"reason_stopping": "Ottie sammuu.",
+	"reason_storage_failed": "Ottie ei voinut tallentaa tätä, joten mikään ei muuttunut. Vapauta levytilaa tai tarkista asema.",
 	"col_name": "Nimi",
 	"col_size": "Koko",
 	"col_progress": "Edistyminen",

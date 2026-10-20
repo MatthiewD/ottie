@@ -94,6 +94,7 @@
 	"reason_job_not_found": "Unduhan itu sudah tidak ada.",
 	"reason_invalid_transition": "Itu tidak mungkin dalam status unduhan saat ini.",
 	"reason_stopping": "Ottie sedang dimatikan.",
+	"reason_storage_failed": "Ottie tidak dapat menyimpan ini, jadi tidak ada yang berubah. Kosongkan ruang disk atau periksa drive.",
 	"col_name": "Nama",
 	"col_size": "Ukuran",
 	"col_progress": "Kemajuan",

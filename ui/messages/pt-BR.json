@@ -94,6 +94,7 @@
 	"reason_job_not_found": "Esse download não existe mais.",
 	"reason_invalid_transition": "Isso não é possível no estado atual do download.",
 	"reason_stopping": "O Ottie está sendo encerrado.",
+	"reason_storage_failed": "O Ottie não conseguiu salvar isto, então nada mudou. Libere espaço em disco ou verifique a unidade.",
 	"col_name": "Nome",
 	"col_size": "Tamanho",
 	"col_progress": "Progresso",

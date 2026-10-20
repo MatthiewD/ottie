@@ -94,6 +94,7 @@
 	"reason_job_not_found": "لم يعد هذا التنزيل موجودًا.",
 	"reason_invalid_transition": "هذا غير ممكن في الحالة الحالية للتنزيل.",
 	"reason_stopping": "يجري إيقاف تشغيل Ottie.",
+	"reason_storage_failed": "تعذّر على Ottie حفظ هذا، لذا لم يتغيّر شيء. حرّر بعض المساحة على القرص أو افحص محرك الأقراص.",
 	"col_name": "الاسم",
 	"col_size": "الحجم",
 	"col_progress": "التقدّم",

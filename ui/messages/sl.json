@@ -94,6 +94,7 @@
 	"reason_job_not_found": "Ta prenos ne obstaja več.",
 	"reason_invalid_transition": "V trenutnem stanju prenosa to ni mogoče.",
 	"reason_stopping": "Ottie se zaustavlja.",
+	"reason_storage_failed": "Ottie tega ni mogel shraniti, zato se ni nič spremenilo. Sprostite prostor na disku ali preverite pogon.",
 	"col_name": "Ime",
 	"col_size": "Velikost",
 	"col_progress": "Napredek",

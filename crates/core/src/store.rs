@@ -533,19 +533,37 @@ pub struct Store {
 
 enum Op {
     Load(oneshot::Sender<Result<Loaded, Error>>),
+    /// `done`, when given, hears once it's committed, or why not.
+    Write {
+        write: Write,
+        done: Option<oneshot::Sender<Result<(), Error>>>,
+    },
+    Flush(oneshot::Sender<Result<(), Error>>),
+}
+
+/// A change to the database, written in order with the others.
+pub(crate) enum Write {
     Save(Box<JobRecord>),
+    /// In one transaction: all or none.
     SaveJobs(Vec<JobRecord>),
     SaveSettings(Settings),
+    /// Replaces the category's extensions too.
     SaveCategory(Category),
+    /// Its jobs must have been saved in another category first.
     RemoveCategory(CategoryId),
+    /// Replaces the view's lists too.
     SaveView(View),
     RemoveView(ViewId),
-    RemoveJob { id: JobId, last_id: JobId },
+    /// Deletes the job and its segments, and records `last_id`, the highest
+    /// ID handed out, so it's never handed out again.
+    RemoveJob {
+        id: JobId,
+        last_id: JobId,
+    },
     SaveSlot(SlotRecord),
     RemoveSlot(SlotId),
     SaveCertificate(TrustedCertificate),
     RemoveCertificate(CertificateId),
-    Flush(oneshot::Sender<Result<(), Error>>),
 }
 
 impl Store {
@@ -602,90 +620,31 @@ impl Store {
         answer.await.map_err(|_| Error::StoreStopped)?
     }
 
-    /// Queues an insert-or-update. Writes happen in order. Failures are logged
-    /// rather than returned: a failed save must not stop a download.
+    /// Queues a write: they happen in order. A failure is logged and shown
+    /// (`failing`) rather than returned: a failed save must not stop a
+    /// download. For what the caller was promised, [`Store::write`].
+    pub(crate) fn queue(&self, write: Write) {
+        if self.ops.send(Op::Write { write, done: None }).is_err() {
+            tracing::error!("database thread has stopped; a change wasn't saved");
+        }
+    }
+
+    /// Writes, in order with the queued ones, and waits until it's
+    /// committed: [`Error::StorageFailed`] if it couldn't be.
+    pub(crate) async fn write(&self, write: Write) -> Result<(), Error> {
+        let (done, committed) = oneshot::channel();
+        self.ops
+            .send(Op::Write {
+                write,
+                done: Some(done),
+            })
+            .map_err(|_| Error::StoreStopped)?;
+        committed.await.map_err(|_| Error::StoreStopped)?
+    }
+
+    /// Queues an insert-or-update of one job.
     pub(crate) fn save(&self, record: JobRecord) {
-        if self.ops.send(Op::Save(Box::new(record))).is_err() {
-            tracing::error!("database thread has stopped; job not saved");
-        }
-    }
-
-    /// Queued like `save`, and written in one transaction: all or none.
-    pub(crate) fn save_jobs(&self, records: Vec<JobRecord>) {
-        if self.ops.send(Op::SaveJobs(records)).is_err() {
-            tracing::error!("database thread has stopped; jobs not saved");
-        }
-    }
-
-    /// Queued like `save`.
-    pub(crate) fn save_settings(&self, settings: Settings) {
-        if self.ops.send(Op::SaveSettings(settings)).is_err() {
-            tracing::error!("database thread has stopped; settings not saved");
-        }
-    }
-
-    /// Queued like `save`. Replaces the category's extensions too.
-    pub(crate) fn save_category(&self, category: Category) {
-        if self.ops.send(Op::SaveCategory(category)).is_err() {
-            tracing::error!("database thread has stopped; category not saved");
-        }
-    }
-
-    /// Queued like `save`. Its jobs must have been saved in another category first.
-    pub(crate) fn remove_category(&self, id: CategoryId) {
-        if self.ops.send(Op::RemoveCategory(id)).is_err() {
-            tracing::error!("database thread has stopped; category not removed");
-        }
-    }
-
-    /// Queued like `save`. Replaces the view's lists too.
-    pub(crate) fn save_view(&self, view: View) {
-        if self.ops.send(Op::SaveView(view)).is_err() {
-            tracing::error!("database thread has stopped; view not saved");
-        }
-    }
-
-    /// Queued like `save`.
-    pub(crate) fn remove_view(&self, id: ViewId) {
-        if self.ops.send(Op::RemoveView(id)).is_err() {
-            tracing::error!("database thread has stopped; view not removed");
-        }
-    }
-
-    /// Queued like `save`.
-    pub(crate) fn save_certificate(&self, certificate: TrustedCertificate) {
-        if self.ops.send(Op::SaveCertificate(certificate)).is_err() {
-            tracing::error!("database thread has stopped; certificate not saved");
-        }
-    }
-
-    /// Queued like `save`.
-    pub(crate) fn remove_certificate(&self, id: CertificateId) {
-        if self.ops.send(Op::RemoveCertificate(id)).is_err() {
-            tracing::error!("database thread has stopped; certificate not removed");
-        }
-    }
-
-    /// Queued like `save`. Deletes the job and its segments, and records
-    /// `last_id`, the highest ID handed out, so it's never handed out again.
-    pub(crate) fn remove_job(&self, id: JobId, last_id: JobId) {
-        if self.ops.send(Op::RemoveJob { id, last_id }).is_err() {
-            tracing::error!("database thread has stopped; job not removed");
-        }
-    }
-
-    /// Queued like `save`.
-    pub(crate) fn save_slot(&self, slot: SlotRecord) {
-        if self.ops.send(Op::SaveSlot(slot)).is_err() {
-            tracing::error!("database thread has stopped; time slot not saved");
-        }
-    }
-
-    /// Queued like `save`.
-    pub(crate) fn remove_slot(&self, id: SlotId) {
-        if self.ops.send(Op::RemoveSlot(id)).is_err() {
-            tracing::error!("database thread has stopped; time slot not removed");
-        }
+        self.queue(Write::Save(Box::new(record)));
     }
 
     /// Waits until every save queued before this call has been written;
@@ -712,10 +671,11 @@ fn serve(
     requests: std_mpsc::Receiver<Op>,
     failing: watch::Sender<Option<String>>,
 ) {
-    // The first write that failed since the last flush.
+    // The first queued write that failed since the last flush: one awaited
+    // has told its caller already.
     let mut first: Option<String> = None;
     while let Ok(op) = requests.recv() {
-        let written = match op {
+        let (write, done) = match op {
             Op::Load(reply) => {
                 let _ = reply.send(load_all(&conn));
                 continue;
@@ -728,62 +688,76 @@ fn serve(
                 );
                 continue;
             }
-            Op::Save(record) => save(&mut conn, std::slice::from_ref(&*record))
-                .map_err(|err| failed(err, &format!("could not save job {}", record.id))),
-            Op::SaveJobs(records) => save(&mut conn, &records)
-                .map_err(|err| failed(err, &format!("could not save {} jobs", records.len()))),
-            Op::SaveSettings(settings) => save_settings(&conn, &settings)
-                .map_err(|err| failed(err, "could not save settings")),
-            Op::SaveCategory(category) => save_category(&mut conn, &category)
-                .map_err(|err| failed(err, &format!("could not save category {}", category.id))),
-            Op::RemoveCategory(id) => conn
-                .execute("DELETE FROM categories WHERE id = ?1", [id.0])
-                .map(drop)
-                .map_err(|err| failed(err, &format!("could not remove category {id}"))),
-            Op::SaveView(view) => save_view(&mut conn, &view)
-                .map_err(|err| failed(err, &format!("could not save view {}", view.id))),
-            Op::RemoveView(id) => conn
-                .execute("DELETE FROM views WHERE id = ?1", [id.0])
-                .map(drop)
-                .map_err(|err| failed(err, &format!("could not remove view {id}"))),
-            Op::RemoveJob { id, last_id } => remove_job(&mut conn, id, last_id)
-                .map_err(|err| failed(err, &format!("could not remove job {id}"))),
-            Op::SaveSlot(slot) => save_slot(&conn, &slot)
-                .map_err(|err| failed(err, &format!("could not save time slot {}", slot.id))),
-            Op::RemoveSlot(id) => conn
-                .execute("DELETE FROM slots WHERE id = ?1", [id.0])
-                .map(drop)
-                .map_err(|err| failed(err, &format!("could not remove time slot {id}"))),
-            Op::SaveCertificate(certificate) => conn
-                .execute(
-                    "INSERT INTO certificates (id, host, fingerprint) VALUES (?1, ?2, ?3)",
-                    params![certificate.id.0, certificate.host, certificate.fingerprint],
-                )
-                .map(drop)
-                .map_err(|err| {
-                    failed(
-                        err,
-                        &format!("could not save certificate {}", certificate.id),
-                    )
-                }),
-            Op::RemoveCertificate(id) => conn
-                .execute("DELETE FROM certificates WHERE id = ?1", [id.0])
-                .map(drop)
-                .map_err(|err| failed(err, &format!("could not remove certificate {id}"))),
+            Op::Write { write, done } => (write, done),
         };
-        match written {
+        let written = perform(&mut conn, write);
+        match &written {
             Ok(()) => {
                 failing.send_if_modified(|now| now.take().is_some());
             }
             Err(text) => {
-                first.get_or_insert_with(|| text.clone());
+                if done.is_none() {
+                    first.get_or_insert_with(|| text.clone());
+                }
                 failing.send_if_modified(|now| {
                     let new = now.as_deref() != Some(text.as_str());
-                    *now = Some(text);
+                    *now = Some(text.clone());
                     new
                 });
             }
         }
+        if let Some(done) = done {
+            let _ = done.send(written.map_err(Error::StorageFailed));
+        }
+    }
+}
+
+/// Writes one change; its error's text if it failed (logged).
+fn perform(conn: &mut Connection, write: Write) -> Result<(), String> {
+    match write {
+        Write::Save(record) => save(conn, std::slice::from_ref(&*record))
+            .map_err(|err| failed(err, &format!("could not save job {}", record.id))),
+        Write::SaveJobs(records) => save(conn, &records)
+            .map_err(|err| failed(err, &format!("could not save {} jobs", records.len()))),
+        Write::SaveSettings(settings) => {
+            save_settings(conn, &settings).map_err(|err| failed(err, "could not save settings"))
+        }
+        Write::SaveCategory(category) => save_category(conn, &category)
+            .map_err(|err| failed(err, &format!("could not save category {}", category.id))),
+        Write::RemoveCategory(id) => conn
+            .execute("DELETE FROM categories WHERE id = ?1", [id.0])
+            .map(drop)
+            .map_err(|err| failed(err, &format!("could not remove category {id}"))),
+        Write::SaveView(view) => save_view(conn, &view)
+            .map_err(|err| failed(err, &format!("could not save view {}", view.id))),
+        Write::RemoveView(id) => conn
+            .execute("DELETE FROM views WHERE id = ?1", [id.0])
+            .map(drop)
+            .map_err(|err| failed(err, &format!("could not remove view {id}"))),
+        Write::RemoveJob { id, last_id } => remove_job(conn, id, last_id)
+            .map_err(|err| failed(err, &format!("could not remove job {id}"))),
+        Write::SaveSlot(slot) => save_slot(conn, &slot)
+            .map_err(|err| failed(err, &format!("could not save time slot {}", slot.id))),
+        Write::RemoveSlot(id) => conn
+            .execute("DELETE FROM slots WHERE id = ?1", [id.0])
+            .map(drop)
+            .map_err(|err| failed(err, &format!("could not remove time slot {id}"))),
+        Write::SaveCertificate(certificate) => conn
+            .execute(
+                "INSERT INTO certificates (id, host, fingerprint) VALUES (?1, ?2, ?3)",
+                params![certificate.id.0, certificate.host, certificate.fingerprint],
+            )
+            .map(drop)
+            .map_err(|err| {
+                failed(
+                    err,
+                    &format!("could not save certificate {}", certificate.id),
+                )
+            }),
+        Write::RemoveCertificate(id) => conn
+            .execute("DELETE FROM certificates WHERE id = ?1", [id.0])
+            .map(drop)
+            .map_err(|err| failed(err, &format!("could not remove certificate {id}"))),
     }
 }
 
@@ -1779,7 +1753,7 @@ mod tests {
     async fn slots_are_saved_replaced_and_removed() {
         use jiff::civil::{Weekday, date, time};
         let store = Store::open_in_memory().await.unwrap();
-        store.save_category(videos());
+        store.queue(Write::SaveCategory(videos()));
         let night = SlotRecord {
             id: SlotId(1),
             place: 2,
@@ -1806,8 +1780,8 @@ mod tests {
                 ..SlotSettings::daily(time(0, 0, 0, 0), time(0, 0, 0, 0))
             },
         };
-        store.save_slot(night.clone());
-        store.save_slot(once.clone());
+        store.queue(Write::SaveSlot(night.clone()));
+        store.queue(Write::SaveSlot(once.clone()));
         // In the order of their places.
         assert_eq!(
             store.load().await.unwrap().slots,
@@ -1817,11 +1791,11 @@ mod tests {
         let mut night = night;
         night.place = 0;
         night.settings.downloads = None;
-        store.save_slot(night.clone());
-        store.remove_slot(SlotId(9)); // Not there: nothing happens.
+        store.queue(Write::SaveSlot(night.clone()));
+        store.queue(Write::RemoveSlot(SlotId(9))); // Not there: nothing happens.
         assert_eq!(store.load().await.unwrap().slots, [night.clone(), once]);
         // A category's slots go with it.
-        store.remove_category(videos().id);
+        store.queue(Write::RemoveCategory(videos().id));
         assert_eq!(store.load().await.unwrap().slots, [night]);
     }
 
@@ -1963,7 +1937,7 @@ mod tests {
             done: 5,
         }];
         let jobs = vec![first, record(2), record(3)];
-        store.save_jobs(jobs.clone());
+        store.queue(Write::SaveJobs(jobs.clone()));
         assert_eq!(store.load().await.unwrap().jobs, jobs);
     }
 
@@ -1999,12 +1973,18 @@ mod tests {
         store.save(older.clone());
         store.save(newer.clone());
 
-        store.remove_job(newer.id, newer.id);
+        store.queue(Write::RemoveJob {
+            id: newer.id,
+            last_id: newer.id,
+        });
         let loaded = store.load().await.unwrap();
         assert_eq!(loaded.jobs, [older.clone()]);
         assert_eq!(loaded.last_id, Some(newer.id));
 
-        store.remove_job(older.id, newer.id);
+        store.queue(Write::RemoveJob {
+            id: older.id,
+            last_id: newer.id,
+        });
         assert!(store.load().await.unwrap().jobs.is_empty());
     }
 
@@ -2032,7 +2012,7 @@ mod tests {
             existing: Existing::Ask,
             storage_failing: None,
         };
-        store.save_settings(changed.clone());
+        store.queue(Write::SaveSettings(changed.clone()));
         assert_eq!(store.load().await.unwrap().settings, changed);
     }
 
@@ -2103,20 +2083,20 @@ mod tests {
     async fn categories_are_saved_replaced_and_removed() {
         let store = Store::open_in_memory().await.unwrap();
         let mut videos = videos();
-        store.save_category(videos.clone());
+        store.queue(Write::SaveCategory(videos.clone()));
         assert_eq!(store.load().await.unwrap().categories[2], videos);
 
         videos.settings.extensions = vec!["webm".into()];
         videos.settings.folder = None;
-        store.save_category(videos.clone());
+        store.queue(Write::SaveCategory(videos.clone()));
         assert_eq!(store.load().await.unwrap().categories[2], videos);
 
-        store.remove_category(videos.id);
+        store.queue(Write::RemoveCategory(videos.id));
         assert_eq!(store.load().await.unwrap().categories.len(), 2);
         // Its extension went with it, so another category can take it.
         let mut films = videos;
         films.settings.name = "Films".into();
-        store.save_category(films.clone());
+        store.queue(Write::SaveCategory(films.clone()));
         assert_eq!(store.load().await.unwrap().categories[2], films);
     }
 
@@ -2137,9 +2117,9 @@ mod tests {
             host: "192.168.1.1".into(),
             fingerprint: "cd".repeat(32),
         };
-        store.save_certificate(nas.clone());
-        store.save_certificate(router);
-        store.remove_certificate(CertificateId(2));
+        store.queue(Write::SaveCertificate(nas.clone()));
+        store.queue(Write::SaveCertificate(router));
+        store.queue(Write::RemoveCertificate(CertificateId(2)));
         let loaded = store.load().await.unwrap();
         assert_eq!(loaded.jobs, [ftp]);
         assert_eq!(loaded.certificates, [nas]);
@@ -2148,7 +2128,7 @@ mod tests {
     #[tokio::test]
     async fn views_are_saved_replaced_and_removed() {
         let store = Store::open_in_memory().await.unwrap();
-        store.save_category(videos());
+        store.queue(Write::SaveCategory(videos()));
         let mut view = View {
             id: ViewId(1),
             settings: ViewSettings {
@@ -2162,12 +2142,12 @@ mod tests {
                 ..ViewSettings::named("Big ISOs")
             },
         };
-        store.save_view(view.clone());
+        store.queue(Write::SaveView(view.clone()));
         let everything = View {
             id: ViewId(2),
             settings: ViewSettings::named("Everything"),
         };
-        store.save_view(everything.clone());
+        store.queue(Write::SaveView(everything.clone()));
         assert_eq!(
             store.load().await.unwrap().views,
             [view.clone(), everything]
@@ -2176,17 +2156,17 @@ mod tests {
         // An empty list is not the same as any.
         view.settings.states = Some(Vec::new());
         view.settings.categories = None;
-        store.save_view(view.clone());
+        store.queue(Write::SaveView(view.clone()));
         assert_eq!(store.load().await.unwrap().views[0], view);
 
-        store.remove_view(ViewId(2));
+        store.queue(Write::RemoveView(ViewId(2)));
         assert_eq!(store.load().await.unwrap().views, [view]);
     }
 
     #[tokio::test]
     async fn jobs_keep_their_category() {
         let store = Store::open_in_memory().await.unwrap();
-        store.save_category(videos());
+        store.queue(Write::SaveCategory(videos()));
         let mut job = record(1);
         job.category = videos().id;
         job.category_chosen = true;

@@ -90,6 +90,10 @@ pub(crate) fn describe(mut api: utoipa::openapi::OpenApi) -> utoipa::openapi::Op
                     responses.entry("403".into()).or_insert_with(|| {
                         refusal("`readOnly`: a device's token that may only read")
                     });
+                    // What changes is saved before it's answered (0059).
+                    responses.entry("500".into()).or_insert_with(|| {
+                        refusal("`storageFailed`: the change couldn't be saved, so nothing changed")
+                    });
                 }
             }
             responses

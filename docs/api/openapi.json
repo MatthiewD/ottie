@@ -177,6 +177,16 @@
               }
             }
           },
+          "500": {
+            "description": "`storageFailed`: the change couldn't be saved, so nothing changed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
           "503": {
             "description": "`stopping`: the daemon is shutting down",
             "content": {
@@ -236,6 +246,16 @@
           },
           "404": {
             "description": "`deviceNotFound`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "`storageFailed`: the change couldn't be saved, so nothing changed",
             "content": {
               "application/json": {
                 "schema": {
@@ -317,6 +337,16 @@
           },
           "422": {
             "description": "`invalidBody`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "`storageFailed`: the change couldn't be saved, so nothing changed",
             "content": {
               "application/json": {
                 "schema": {
@@ -450,6 +480,16 @@
           },
           "422": {
             "description": "`invalidBody`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "`storageFailed`: the change couldn't be saved, so nothing changed",
             "content": {
               "application/json": {
                 "schema": {
@@ -636,6 +676,16 @@
               }
             }
           },
+          "500": {
+            "description": "`storageFailed`: the change couldn't be saved, so nothing changed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
           "503": {
             "description": "`stopping`: the daemon is shutting down",
             "content": {
@@ -703,6 +753,16 @@
           },
           "409": {
             "description": "`cannotRemoveBuiltIn` (General and Other)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "`storageFailed`: the change couldn't be saved, so nothing changed",
             "content": {
               "application/json": {
                 "schema": {
@@ -834,6 +894,16 @@
               }
             }
           },
+          "500": {
+            "description": "`storageFailed`: the change couldn't be saved, so nothing changed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
           "503": {
             "description": "`stopping`: the daemon is shutting down",
             "content": {
@@ -893,6 +963,16 @@
           },
           "404": {
             "description": "`certificateNotFound`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "`storageFailed`: the change couldn't be saved, so nothing changed",
             "content": {
               "application/json": {
                 "schema": {
@@ -1139,6 +1219,16 @@
               }
             }
           },
+          "500": {
+            "description": "`storageFailed`: the change couldn't be saved, so nothing changed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
           "503": {
             "description": "`stopping`: the daemon is shutting down",
             "content": {
@@ -1212,6 +1302,16 @@
           },
           "422": {
             "description": "`invalidBody`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "`storageFailed`: the change couldn't be saved, so nothing changed",
             "content": {
               "application/json": {
                 "schema": {
@@ -1385,6 +1485,16 @@
               }
             }
           },
+          "500": {
+            "description": "`storageFailed`: the change couldn't be saved, so nothing changed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
           "503": {
             "description": "`stopping`: the daemon is shutting down",
             "content": {
@@ -1540,6 +1650,16 @@
               }
             }
           },
+          "500": {
+            "description": "`storageFailed`: the change couldn't be saved, so nothing changed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
           "503": {
             "description": "`stopping`: the daemon is shutting down",
             "content": {
@@ -1643,6 +1763,16 @@
               }
             }
           },
+          "500": {
+            "description": "`storageFailed`: the change couldn't be saved, so nothing changed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
           "503": {
             "description": "`stopping`: the daemon is shutting down",
             "content": {
@@ -1720,6 +1850,16 @@
           },
           "409": {
             "description": "`invalidTransition` or `jobMoving`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "`storageFailed`: the change couldn't be saved, so nothing changed",
             "content": {
               "application/json": {
                 "schema": {
@@ -1928,6 +2068,16 @@
               }
             }
           },
+          "500": {
+            "description": "`storageFailed`: the change couldn't be saved, so nothing changed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
           "503": {
             "description": "`stopping`: the daemon is shutting down",
             "content": {
@@ -2005,6 +2155,16 @@
           },
           "409": {
             "description": "`invalidTransition` or `jobMoving`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "`storageFailed`: the change couldn't be saved, so nothing changed",
             "content": {
               "application/json": {
                 "schema": {
@@ -2235,6 +2395,16 @@
               }
             }
           },
+          "500": {
+            "description": "`storageFailed`: the change couldn't be saved, so nothing changed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
           "503": {
             "description": "`stopping`: the daemon is shutting down",
             "content": {
@@ -2365,6 +2535,16 @@
               }
             }
           },
+          "500": {
+            "description": "`storageFailed`: the change couldn't be saved, so nothing changed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
           "503": {
             "description": "`stopping`: the daemon is shutting down",
             "content": {
@@ -2431,6 +2611,16 @@
           },
           "422": {
             "description": "`invalidBody`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "`storageFailed`: the change couldn't be saved, so nothing changed",
             "content": {
               "application/json": {
                 "schema": {
@@ -2536,6 +2726,16 @@
               }
             }
           },
+          "500": {
+            "description": "`storageFailed`: the change couldn't be saved, so nothing changed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
           "503": {
             "description": "`stopping`: the daemon is shutting down",
             "content": {
@@ -2593,6 +2793,16 @@
           },
           "404": {
             "description": "`slotNotFound`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "`storageFailed`: the change couldn't be saved, so nothing changed",
             "content": {
               "application/json": {
                 "schema": {
@@ -2917,6 +3127,16 @@
               }
             }
           },
+          "500": {
+            "description": "`storageFailed`: the change couldn't be saved, so nothing changed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
           "503": {
             "description": "`stopping`: the daemon is shutting down",
             "content": {
@@ -3024,6 +3244,16 @@
               }
             }
           },
+          "500": {
+            "description": "`storageFailed`: the change couldn't be saved, so nothing changed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
           "503": {
             "description": "`stopping`: the daemon is shutting down",
             "content": {
@@ -3081,6 +3311,16 @@
           },
           "404": {
             "description": "`viewNotFound`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "`storageFailed`: the change couldn't be saved, so nothing changed",
             "content": {
               "application/json": {
                 "schema": {
@@ -5350,6 +5590,21 @@
                 "type": "integer",
                 "format": "int64",
                 "minimum": 0
+              }
+            }
+          },
+          {
+            "type": "object",
+            "description": "Saving the change to the database failed (a full disk, a drive gone):\nnothing changed. `error` has the database's text (docs/decisions/0059).",
+            "required": [
+              "code"
+            ],
+            "properties": {
+              "code": {
+                "type": "string",
+                "enum": [
+                  "storageFailed"
+                ]
               }
             }
           },

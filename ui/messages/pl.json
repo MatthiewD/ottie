@@ -94,6 +94,7 @@
 	"reason_job_not_found": "To pobieranie już nie istnieje.",
 	"reason_invalid_transition": "W obecnym stanie pobierania nie jest to możliwe.",
 	"reason_stopping": "Ottie się zamyka.",
+	"reason_storage_failed": "Ottie nie mógł tego zapisać, więc nic się nie zmieniło. Zwolnij miejsce na dysku lub sprawdź dysk.",
 	"col_name": "Nazwa",
 	"col_size": "Rozmiar",
 	"col_progress": "Postęp",

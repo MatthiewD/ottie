@@ -94,6 +94,7 @@
 	"reason_job_not_found": "Ez a letöltés már nem létezik.",
 	"reason_invalid_transition": "A letöltés jelenlegi állapotában ez nem lehetséges.",
 	"reason_stopping": "Az Ottie leáll.",
+	"reason_storage_failed": "Az Ottie nem tudta ezt menteni, így semmi sem változott. Szabadíts fel helyet a lemezen, vagy ellenőrizd a meghajtót.",
 	"col_name": "Név",
 	"col_size": "Méret",
 	"col_progress": "Állapot",

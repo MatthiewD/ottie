@@ -94,6 +94,7 @@
 	"reason_job_not_found": "Lượt tải xuống đó không còn nữa.",
 	"reason_invalid_transition": "Không thể làm vậy ở trạng thái hiện tại của lượt tải xuống.",
 	"reason_stopping": "Ottie đang tắt.",
+	"reason_storage_failed": "Ottie không thể lưu thay đổi này nên không có gì thay đổi. Hãy giải phóng dung lượng đĩa hoặc kiểm tra ổ đĩa.",
 	"col_name": "Tên",
 	"col_size": "Kích thước",
 	"col_progress": "Tiến độ",

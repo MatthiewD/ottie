@@ -94,6 +94,7 @@
 	"reason_job_not_found": "Seda allalaadimist enam pole.",
 	"reason_invalid_transition": "Allalaadimise praeguses olekus pole see võimalik.",
 	"reason_stopping": "Ottie lülitub välja.",
+	"reason_storage_failed": "Ottie ei saanud seda salvestada, seega ei muutunud midagi. Vabasta kettaruumi või kontrolli draivi.",
 	"col_name": "Nimi",
 	"col_size": "Suurus",
 	"col_progress": "Edenemine",

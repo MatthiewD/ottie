@@ -94,6 +94,7 @@
 	"reason_job_not_found": "Šī lejupielāde vairs nepastāv.",
 	"reason_invalid_transition": "Lejupielādes pašreizējā stāvoklī tas nav iespējams.",
 	"reason_stopping": "Ottie izslēdzas.",
+	"reason_storage_failed": "Ottie nevarēja to saglabāt, tāpēc nekas nemainījās. Atbrīvojiet vietu diskā vai pārbaudiet disku.",
 	"col_name": "Nosaukums",
 	"col_size": "Izmērs",
 	"col_progress": "Progress",

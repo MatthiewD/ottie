@@ -28,7 +28,7 @@ use crate::problem::Problem;
 use crate::settings::{RetryPolicy, Settings, SettingsChange};
 use crate::slot::{Effects, Slot, SlotId, SlotSettings};
 use crate::speed::SpeedHistory;
-use crate::store::{JobRecord, SlotRecord, Store};
+use crate::store::{JobRecord, SlotRecord, Store, Write};
 use crate::throttle::Limiter;
 use crate::view::{View, ViewId, ViewSettings};
 
@@ -998,10 +998,7 @@ impl<B: Backend> Actor<B> {
             }
             if self.shutdown.is_some() && !self.any_task_running() {
                 // Every save so far written, or the first that failed.
-                let flushed = self.store.flush().await.map_err(|err| match err {
-                    Error::StorageFailed(text) => text,
-                    other => other.to_string(),
-                });
+                let flushed = self.store.flush().await.map_err(storage_text);
                 for reply in self.shutdown.take().unwrap_or_default() {
                     let _ = reply.send(flushed.clone().map_err(Error::StorageFailed));
                 }
@@ -1015,10 +1012,10 @@ impl<B: Backend> Actor<B> {
     async fn on_command(&mut self, command: Command) {
         match command {
             Command::Add { job, reply } => {
-                let _ = reply.send(self.add(job));
+                let _ = reply.send(self.add(job).await);
             }
             Command::AddMany { jobs, reply } => {
-                let _ = reply.send(self.add_many(jobs));
+                let _ = reply.send(self.add_many(jobs).await);
             }
             Command::Preview {
                 found,
@@ -1045,7 +1042,7 @@ impl<B: Backend> Actor<B> {
                 let _ = reply.send(Ok(self.speed.samples()));
             }
             Command::ChangeSettings { change, reply } => {
-                let _ = reply.send(Ok(self.change_settings(change)));
+                let _ = reply.send(self.change_settings(change).await);
             }
             Command::ChangeJob { id, change, reply } => {
                 let _ = reply.send(self.change_job(id, change));
@@ -1064,17 +1061,17 @@ impl<B: Backend> Actor<B> {
                 let _ = reply.send(Ok(self.matched(&url, dest_dir.as_deref())));
             }
             Command::AddCategory { settings, reply } => {
-                let _ = reply.send(self.add_category(settings));
+                let _ = reply.send(self.add_category(settings).await);
             }
             Command::UpdateCategory {
                 id,
                 settings,
                 reply,
             } => {
-                let _ = reply.send(self.update_category(id, settings));
+                let _ = reply.send(self.update_category(id, settings).await);
             }
             Command::RemoveCategory { id, reply } => {
-                let _ = reply.send(self.remove_category(id));
+                let _ = reply.send(self.remove_category(id).await);
             }
             Command::SetCategory {
                 id,
@@ -1092,42 +1089,42 @@ impl<B: Backend> Actor<B> {
                 fingerprint,
                 reply,
             } => {
-                let _ = reply.send(self.trust_certificate(host, fingerprint));
+                let _ = reply.send(self.trust_certificate(host, fingerprint).await);
             }
             Command::DistrustCertificate { id, reply } => {
-                let _ = reply.send(self.distrust_certificate(id));
+                let _ = reply.send(self.distrust_certificate(id).await);
             }
             Command::AddView { settings, reply } => {
-                let _ = reply.send(self.add_view(settings));
+                let _ = reply.send(self.add_view(settings).await);
             }
             Command::UpdateView {
                 id,
                 settings,
                 reply,
             } => {
-                let _ = reply.send(self.update_view(id, settings));
+                let _ = reply.send(self.update_view(id, settings).await);
             }
             Command::RemoveView { id, reply } => {
-                let _ = reply.send(self.remove_view(id));
+                let _ = reply.send(self.remove_view(id).await);
             }
             Command::Slots { reply } => {
                 let _ = reply.send(Ok(self.slots()));
             }
             Command::AddSlot { settings, reply } => {
-                let _ = reply.send(self.add_slot(settings));
+                let _ = reply.send(self.add_slot(settings).await);
             }
             Command::UpdateSlot {
                 id,
                 settings,
                 reply,
             } => {
-                let _ = reply.send(self.update_slot(id, settings));
+                let _ = reply.send(self.update_slot(id, settings).await);
             }
             Command::RemoveSlot { id, reply } => {
-                let _ = reply.send(self.remove_slot(id));
+                let _ = reply.send(self.remove_slot(id).await);
             }
             Command::ReorderSlots { ids, reply } => {
-                let _ = reply.send(self.reorder_slots(&ids));
+                let _ = reply.send(self.reorder_slots(&ids).await);
             }
             Command::Shutdown { reply } => self.begin_shutdown(Some(reply)),
         }
@@ -1254,19 +1251,28 @@ impl<B: Backend> Actor<B> {
         }
     }
 
-    fn add(&mut self, new: NewJob) -> Result<JobId, Error> {
+    /// Answers once the job is in the database: if it can't be saved, it
+    /// isn't added (docs/decisions/0059).
+    async fn add(&mut self, new: NewJob) -> Result<JobId, Error> {
         if self.shutdown.is_some() {
             return Err(Error::ManagerStopped);
         }
         let id = self.insert(new)?;
-        self.save(id);
+        if let Some(record) = self.record(id)
+            && let Err(err) = self.store.write(Write::Save(Box::new(record))).await
+        {
+            self.jobs.remove(&id);
+            return Err(err);
+        }
         self.emit_changed(id);
         self.check_times();
         self.schedule();
         Ok(id)
     }
 
-    fn add_many(&mut self, jobs: Vec<NewJob>) -> Result<Vec<Result<JobId, Error>>, Error> {
+    /// Answers once they're in the database, all of them, or none if they
+    /// can't be saved.
+    async fn add_many(&mut self, jobs: Vec<NewJob>) -> Result<Vec<Result<JobId, Error>>, Error> {
         if self.shutdown.is_some() {
             return Err(Error::ManagerStopped);
         }
@@ -1274,7 +1280,12 @@ impl<B: Backend> Actor<B> {
         let results: Vec<_> = jobs.into_iter().map(|new| self.insert(new)).collect();
         let added: Vec<JobId> = results.iter().flatten().copied().collect();
         let records = added.iter().filter_map(|&id| self.record(id)).collect();
-        self.store.save_jobs(records);
+        if let Err(err) = self.store.write(Write::SaveJobs(records)).await {
+            for id in &added {
+                self.jobs.remove(id);
+            }
+            return Err(err);
+        }
         for &id in &added {
             self.emit_changed(id);
         }
@@ -1696,18 +1707,37 @@ impl<B: Backend> Actor<B> {
         Ok(settings)
     }
 
-    fn add_category(&mut self, settings: CategorySettings) -> Result<CategoryId, Error> {
+    async fn add_category(&mut self, settings: CategorySettings) -> Result<CategoryId, Error> {
         let settings = self.check_category(settings, None)?;
         // General always exists, so there is a last ID.
         let last = self.categories.keys().next_back().map_or(0, |id| id.0);
         let id = CategoryId(last.checked_add(1).ok_or(Error::TooManyCategories)?);
-        self.categories.insert(id, settings);
-        self.apply_limits();
-        self.save_category(id);
+        self.put_category(id, settings).await?;
         Ok(id)
     }
 
-    fn update_category(
+    /// Saves it, then keeps it and tells the subscribers.
+    async fn put_category(
+        &mut self,
+        id: CategoryId,
+        settings: CategorySettings,
+    ) -> Result<(), Error> {
+        let category = Category {
+            id,
+            settings,
+            built_in: self.built_in(id),
+        };
+        self.store
+            .write(Write::SaveCategory(category.clone()))
+            .await?;
+        self.categories.insert(id, category.settings.clone());
+        self.apply_limits();
+        // Fails only when nobody is subscribed.
+        let _ = self.events.send(JobEvent::CategoryChanged(category));
+        Ok(())
+    }
+
+    async fn update_category(
         &mut self,
         id: CategoryId,
         mut settings: CategorySettings,
@@ -1719,15 +1749,16 @@ impl<B: Backend> Actor<B> {
             settings.extensions.clear();
         }
         let settings = self.check_category(settings, Some(id))?;
-        self.categories.insert(id, settings);
-        self.apply_limits();
-        self.save_category(id);
+        self.put_category(id, settings).await?;
         // A higher cap on running jobs may let queued ones start.
         self.schedule();
         Ok(())
     }
 
-    fn remove_category(&mut self, id: CategoryId) -> Result<(), Error> {
+    /// Its jobs, views and slots are saved first (the database refuses to
+    /// drop a category still in use), then its row is deleted, awaited. If
+    /// that fails, the category comes back; its jobs stay in General.
+    async fn remove_category(&mut self, id: CategoryId) -> Result<(), Error> {
         let settings = self.category(id)?;
         if self.built_in(id).is_some() {
             return Err(Error::CannotRemoveBuiltIn(settings.name.clone()));
@@ -1783,9 +1814,17 @@ impl<B: Backend> Actor<B> {
         for slot_id in slots {
             self.drop_slot(slot_id);
         }
-        self.categories.remove(&id);
+        let Some(removed) = self.categories.remove(&id) else {
+            return Err(Error::CategoryNotFound(id));
+        };
         self.limiter.set_category_limit(id, 0);
-        self.store.remove_category(id);
+        if let Err(err) = self.store.write(Write::RemoveCategory(id)).await {
+            self.categories.insert(id, removed);
+            self.apply_limits();
+            self.check_times();
+            self.schedule();
+            return Err(err);
+        }
         // Fails only when nobody is subscribed.
         let _ = self.events.send(JobEvent::CategoryRemoved(id));
         self.check_times();
@@ -1953,21 +1992,7 @@ impl<B: Backend> Actor<B> {
         Ok(())
     }
 
-    fn save_category(&self, id: CategoryId) {
-        let Some(settings) = self.categories.get(&id) else {
-            return;
-        };
-        let category = Category {
-            id,
-            settings: settings.clone(),
-            built_in: self.built_in(id),
-        };
-        self.store.save_category(category.clone());
-        // Fails only when nobody is subscribed.
-        let _ = self.events.send(JobEvent::CategoryChanged(category));
-    }
-
-    fn trust_certificate(
+    async fn trust_certificate(
         &mut self,
         host: String,
         fingerprint: String,
@@ -1986,18 +2011,19 @@ impl<B: Backend> Actor<B> {
             host,
             fingerprint,
         };
+        self.store
+            .write(Write::SaveCertificate(trusted.clone()))
+            .await?;
         self.certificates.push(trusted.clone());
-        self.store.save_certificate(trusted.clone());
         Ok(trusted)
     }
 
-    fn distrust_certificate(&mut self, id: CertificateId) -> Result<(), Error> {
-        let before = self.certificates.len();
-        self.certificates.retain(|c| c.id != id);
-        if self.certificates.len() == before {
+    async fn distrust_certificate(&mut self, id: CertificateId) -> Result<(), Error> {
+        if !self.certificates.iter().any(|c| c.id == id) {
             return Err(Error::CertificateNotFound(id));
         }
-        self.store.remove_certificate(id);
+        self.store.write(Write::RemoveCertificate(id)).await?;
+        self.certificates.retain(|c| c.id != id);
         Ok(())
     }
 
@@ -2043,28 +2069,41 @@ impl<B: Backend> Actor<B> {
         Ok(settings)
     }
 
-    fn add_view(&mut self, settings: ViewSettings) -> Result<ViewId, Error> {
+    // Views, categories, certificates and slots are saved first: if that
+    // fails, nothing changes (docs/decisions/0059).
+
+    async fn add_view(&mut self, settings: ViewSettings) -> Result<ViewId, Error> {
         let settings = self.check_view(settings, None)?;
         let last = self.views.keys().next_back().map_or(0, |id| id.0);
         let id = ViewId(last.checked_add(1).ok_or(Error::TooManyViews)?);
-        self.views.insert(id, settings);
-        self.save_view(id);
+        self.put_view(id, settings).await?;
         Ok(id)
     }
 
-    fn update_view(&mut self, id: ViewId, settings: ViewSettings) -> Result<(), Error> {
+    async fn update_view(&mut self, id: ViewId, settings: ViewSettings) -> Result<(), Error> {
         if !self.views.contains_key(&id) {
             return Err(Error::ViewNotFound(id));
         }
         let settings = self.check_view(settings, Some(id))?;
-        self.views.insert(id, settings);
-        self.save_view(id);
+        self.put_view(id, settings).await
+    }
+
+    /// Saves it, then keeps it and tells the subscribers.
+    async fn put_view(&mut self, id: ViewId, settings: ViewSettings) -> Result<(), Error> {
+        let view = View { id, settings };
+        self.store.write(Write::SaveView(view.clone())).await?;
+        self.views.insert(id, view.settings.clone());
+        // Fails only when nobody is subscribed.
+        let _ = self.events.send(JobEvent::ViewChanged(view));
         Ok(())
     }
 
-    fn remove_view(&mut self, id: ViewId) -> Result<(), Error> {
-        self.views.remove(&id).ok_or(Error::ViewNotFound(id))?;
-        self.store.remove_view(id);
+    async fn remove_view(&mut self, id: ViewId) -> Result<(), Error> {
+        if !self.views.contains_key(&id) {
+            return Err(Error::ViewNotFound(id));
+        }
+        self.store.write(Write::RemoveView(id)).await?;
+        self.views.remove(&id);
         // Fails only when nobody is subscribed.
         let _ = self.events.send(JobEvent::ViewRemoved(id));
         Ok(())
@@ -2078,7 +2117,7 @@ impl<B: Backend> Actor<B> {
             id,
             settings: settings.clone(),
         };
-        self.store.save_view(view.clone());
+        self.store.queue(Write::SaveView(view.clone()));
         // Fails only when nobody is subscribed.
         let _ = self.events.send(JobEvent::ViewChanged(view));
     }
@@ -2104,7 +2143,7 @@ impl<B: Backend> Actor<B> {
             return;
         }
         let finished = matches!(job.state, JobState::Completed | JobState::Cancelled);
-        let result = if stop == Stop::Remove && finished {
+        let mut result = if stop == Stop::Remove && finished {
             Ok(())
         } else {
             self.transition(id, target, None)
@@ -2114,7 +2153,7 @@ impl<B: Backend> Actor<B> {
                 self.delete_part(id).await;
             }
             if stop == Stop::Remove {
-                self.forget(id);
+                result = self.forget(id).await;
             }
             // A retrying job held a slot, which is now free.
             self.schedule();
@@ -2157,11 +2196,13 @@ impl<B: Backend> Actor<B> {
         }
     }
 
-    fn change_settings(&mut self, change: SettingsChange) -> Settings {
-        let before = self.settings.clone();
-        self.settings.apply(change);
-        if self.settings != before {
-            self.store.save_settings(self.settings.clone());
+    /// Saved first: if it can't be, nothing changes.
+    async fn change_settings(&mut self, change: SettingsChange) -> Result<Settings, Error> {
+        let mut next = self.settings.clone();
+        next.apply(change);
+        if next != self.settings {
+            self.store.write(Write::SaveSettings(next.clone())).await?;
+            let before = std::mem::replace(&mut self.settings, next);
             if self.settings.global_limit != before.global_limit {
                 self.apply_limits();
             }
@@ -2171,7 +2212,7 @@ impl<B: Backend> Actor<B> {
                 .events
                 .send(JobEvent::SettingsChanged(self.settings.clone()));
         }
-        self.settings.clone()
+        Ok(self.settings.clone())
     }
 
     fn list(&self) -> Vec<JobSnapshot> {
@@ -2516,7 +2557,7 @@ impl<B: Backend> Actor<B> {
         Ok(settings)
     }
 
-    fn add_slot(&mut self, settings: SlotSettings) -> Result<SlotId, Error> {
+    async fn add_slot(&mut self, settings: SlotSettings) -> Result<SlotId, Error> {
         let settings = self.check_slot(settings)?;
         let last = self.slots.keys().next_back().map_or(0, |id| id.0);
         let id = SlotId(last.checked_add(1).ok_or(Error::TooManySlots)?);
@@ -2533,40 +2574,59 @@ impl<B: Backend> Actor<B> {
             settings,
             active,
         };
-        self.slots.insert(id, entry);
-        self.save_slot(id);
+        self.put_slot(id, entry).await?;
         self.check_times();
         self.schedule();
         Ok(id)
     }
 
-    fn update_slot(&mut self, id: SlotId, settings: SlotSettings) -> Result<(), Error> {
-        if !self.slots.contains_key(&id) {
+    async fn update_slot(&mut self, id: SlotId, settings: SlotSettings) -> Result<(), Error> {
+        let Some(place) = self.slots.get(&id).map(|slot| slot.place) else {
             return Err(Error::SlotNotFound(id));
-        }
+        };
         let settings = self.check_slot(settings)?;
         let active = settings.enabled && settings.covers(&Zoned::now());
-        if let Some(slot) = self.slots.get_mut(&id) {
-            slot.settings = settings;
-            slot.active = active;
-        }
-        self.save_slot(id);
+        let entry = SlotEntry {
+            place,
+            settings,
+            active,
+        };
+        self.put_slot(id, entry).await?;
         self.check_times();
         self.schedule();
         Ok(())
     }
 
-    fn remove_slot(&mut self, id: SlotId) -> Result<(), Error> {
+    /// Saves it, then keeps it and tells the subscribers.
+    async fn put_slot(&mut self, id: SlotId, entry: SlotEntry) -> Result<(), Error> {
+        let record = SlotRecord {
+            id,
+            place: entry.place,
+            settings: entry.settings.clone(),
+        };
+        self.store.write(Write::SaveSlot(record)).await?;
+        self.slots.insert(id, entry);
+        self.announce_slot(id);
+        Ok(())
+    }
+
+    async fn remove_slot(&mut self, id: SlotId) -> Result<(), Error> {
         if !self.slots.contains_key(&id) {
             return Err(Error::SlotNotFound(id));
         }
-        self.drop_slot(id);
+        self.store.write(Write::RemoveSlot(id)).await?;
+        if self.slots.remove(&id).is_some() {
+            // Fails only when nobody is subscribed.
+            let _ = self.events.send(JobEvent::SlotRemoved(id));
+        }
         self.check_times();
         self.schedule();
         Ok(())
     }
 
-    fn reorder_slots(&mut self, ids: &[SlotId]) -> Result<(), Error> {
+    /// Each slot that moves is saved, then moved: if one can't be saved,
+    /// those before it have moved and the rest haven't.
+    async fn reorder_slots(&mut self, ids: &[SlotId]) -> Result<(), Error> {
         let unique: HashSet<&SlotId> = ids.iter().collect();
         if ids.len() != self.slots.len()
             || unique.len() != ids.len()
@@ -2574,29 +2634,28 @@ impl<B: Backend> Actor<B> {
         {
             return Err(Error::InvalidSlotOrder);
         }
+        let mut saved = Ok(());
         for (place, &id) in (0u64..).zip(ids) {
-            if let Some(slot) = self.slots.get_mut(&id)
-                && slot.place != place
-            {
-                slot.place = place;
-                self.save_slot(id);
+            let Some(slot) = self.slots.get(&id).filter(|slot| slot.place != place) else {
+                continue;
+            };
+            let record = SlotRecord {
+                id,
+                place,
+                settings: slot.settings.clone(),
+            };
+            if let Err(err) = self.store.write(Write::SaveSlot(record)).await {
+                saved = Err(err);
+                break;
             }
+            if let Some(slot) = self.slots.get_mut(&id) {
+                slot.place = place;
+            }
+            self.announce_slot(id);
         }
         self.check_times();
         self.schedule();
-        Ok(())
-    }
-
-    /// Saves the slot and tells the subscribers.
-    fn save_slot(&self, id: SlotId) {
-        if let Some(entry) = self.slots.get(&id) {
-            self.store.save_slot(SlotRecord {
-                id,
-                place: entry.place,
-                settings: entry.settings.clone(),
-            });
-            self.announce_slot(id);
-        }
+        saved
     }
 
     fn announce_slot(&self, id: SlotId) {
@@ -2612,7 +2671,7 @@ impl<B: Backend> Actor<B> {
     /// the times again (what it changed no longer applies).
     fn drop_slot(&mut self, id: SlotId) {
         if self.slots.remove(&id).is_some() {
-            self.store.remove_slot(id);
+            self.store.queue(Write::RemoveSlot(id));
             // Fails only when nobody is subscribed.
             let _ = self.events.send(JobEvent::SlotRemoved(id));
         }
@@ -2786,14 +2845,21 @@ impl<B: Backend> Actor<B> {
             return;
         };
         // Forgotten before answering, so a caller that lists next won't see it.
-        let removed = stop == Some(Stop::Remove);
-        if removed {
-            self.forget(id);
-        }
+        let forgotten = match stop {
+            Some(Stop::Remove) => Some(self.forget(id).await.map_err(storage_text)),
+            _ => None,
+        };
+        let removed = matches!(forgotten, Some(Ok(())));
         for (asked, reply) in task.map(|t| t.waiters).unwrap_or_default() {
             let answer = match asked.target() {
                 _ if removed && asked == Stop::Remove => Ok(()),
                 _ if removed => Err(Error::JobNotFound(id)),
+                // It couldn't be taken out of the database: it stays, cancelled.
+                _ if asked == Stop::Remove && matches!(forgotten, Some(Err(_))) => {
+                    Err(Error::StorageFailed(
+                        forgotten.clone().and_then(Result::err).unwrap_or_default(),
+                    ))
+                }
                 // Paused, but its file isn't as it should be.
                 Some(JobState::Paused) if disk_failure.is_some() => {
                     let (kind, text) = disk_failure
@@ -2930,15 +2996,19 @@ impl<B: Backend> Actor<B> {
     }
 
     /// Takes a stopped job off the list and out of the database.
-    fn forget(&mut self, id: JobId) {
-        if self.jobs.remove(&id).is_none() {
-            return;
+    /// Out of the database first: if that fails, it stays on the list, as
+    /// it would be at the next start (docs/decisions/0059).
+    async fn forget(&mut self, id: JobId) -> Result<(), Error> {
+        if !self.jobs.contains_key(&id) {
+            return Ok(());
         }
         // The generator has handed out at least this job's ID.
         let last_id = self.ids.last().unwrap_or(id);
-        self.store.remove_job(id, last_id);
+        self.store.write(Write::RemoveJob { id, last_id }).await?;
+        self.jobs.remove(&id);
         // Fails only when nobody is subscribed.
         let _ = self.events.send(JobEvent::Removed(id));
+        Ok(())
     }
 
     fn emit_changed(&self, id: JobId) {
@@ -2998,6 +3068,15 @@ fn unix_now() -> u64 {
     SystemTime::now()
         .duration_since(UNIX_EPOCH)
         .map_or(0, |d| d.as_secs())
+}
+
+/// A failed write's text, for answering several with it: the database's
+/// own, not wrapped again.
+fn storage_text(err: Error) -> String {
+    match err {
+        Error::StorageFailed(text) => text,
+        other => other.to_string(),
+    }
 }
 
 /// Runs `work` in a task of its own, then gives `ended` what it returned,

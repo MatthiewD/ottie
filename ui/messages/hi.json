@@ -94,6 +94,7 @@
 	"reason_job_not_found": "यह डाउनलोड अब मौजूद नहीं है।",
 	"reason_invalid_transition": "डाउनलोड की मौजूदा स्थिति में यह संभव नहीं है।",
 	"reason_stopping": "Ottie बंद हो रहा है।",
+	"reason_storage_failed": "Ottie इसे सहेज नहीं सका, इसलिए कुछ नहीं बदला। डिस्क पर कुछ जगह खाली करें या ड्राइव जाँचें।",
 	"col_name": "नाम",
 	"col_size": "आकार",
 	"col_progress": "प्रगति",

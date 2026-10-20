@@ -94,6 +94,7 @@
 	"reason_job_not_found": "Toto sťahovanie už neexistuje.",
 	"reason_invalid_transition": "V súčasnom stave sťahovania to nie je možné.",
 	"reason_stopping": "Ottie sa vypína.",
+	"reason_storage_failed": "Ottie to nemohol uložiť, takže sa nič nezmenilo. Uvoľnite miesto na disku alebo skontrolujte jednotku.",
 	"col_name": "Názov",
 	"col_size": "Veľkosť",
 	"col_progress": "Priebeh",

@@ -155,6 +155,7 @@ impl From<Error> for Failure {
             }
             Error::FileChanged(id) => (S::CONFLICT, Reason::FileChanged { id: id.to_string() }),
             Error::ManagerStopped => (S::SERVICE_UNAVAILABLE, Reason::Stopping),
+            Error::StorageFailed(_) => (S::INTERNAL_SERVER_ERROR, Reason::StorageFailed),
             _ => {
                 // Engine messages never contain URLs or credentials.
                 tracing::error!(error = %err, "request failed");

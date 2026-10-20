@@ -94,6 +94,7 @@
 	"reason_job_not_found": "Upakuaji huo haupo tena.",
 	"reason_invalid_transition": "Hilo haliwezekani katika hali ya sasa ya upakuaji.",
 	"reason_stopping": "Ottie inazimika.",
+	"reason_storage_failed": "Ottie haikuweza kuhifadhi hili, kwa hivyo hakuna kilichobadilika. Futa nafasi kwenye diski au kagua kiendeshi.",
 	"col_name": "Jina",
 	"col_size": "Ukubwa",
 	"col_progress": "Maendeleo",

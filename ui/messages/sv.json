@@ -94,6 +94,7 @@
 	"reason_job_not_found": "Den nedladdningen finns inte längre.",
 	"reason_invalid_transition": "Det går inte i nedladdningens nuvarande läge.",
 	"reason_stopping": "Ottie stängs av.",
+	"reason_storage_failed": "Ottie kunde inte spara detta, så inget ändrades. Frigör diskutrymme eller kontrollera enheten.",
 	"col_name": "Namn",
 	"col_size": "Storlek",
 	"col_progress": "Förlopp",

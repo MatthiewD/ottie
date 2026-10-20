@@ -94,6 +94,7 @@
 	"reason_job_not_found": "Diesen Download gibt es nicht mehr.",
 	"reason_invalid_transition": "Das ist im aktuellen Zustand des Downloads nicht möglich.",
 	"reason_stopping": "Ottie wird beendet.",
+	"reason_storage_failed": "Ottie konnte das nicht speichern, daher hat sich nichts geändert. Geben Sie Speicherplatz frei oder prüfen Sie das Laufwerk.",
 	"col_name": "Name",
 	"col_size": "Größe",
 	"col_progress": "Fortschritt",

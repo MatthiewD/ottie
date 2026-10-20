@@ -94,6 +94,7 @@
 	"reason_job_not_found": "Lokho kulanda akusekho.",
 	"reason_invalid_transition": "Lokho akwenzeki esimweni samanje sokulanda.",
 	"reason_stopping": "I-Ottie iyavaleka.",
+	"reason_storage_failed": "I-Ottie ayikwazanga ukulondoloza lokhu, ngakho akukho okushintshile. Khulula isikhala kudiski noma uhlole idrayivu.",
 	"col_name": "Igama",
 	"col_size": "Usayizi",
 	"col_progress": "Inqubekela phambili",

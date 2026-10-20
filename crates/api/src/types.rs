@@ -1422,6 +1422,9 @@ pub enum Reason {
         #[ts(type = "number")]
         max: u64,
     },
+    /// Saving the change to the database failed (a full disk, a drive gone):
+    /// nothing changed. `error` has the database's text (docs/decisions/0059).
+    StorageFailed,
     /// The daemon is shutting down.
     Stopping,
     /// A bug or an unexpected failure; `error` has the details.
