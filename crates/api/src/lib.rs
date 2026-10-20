@@ -24,6 +24,7 @@ mod events;
 pub mod identity;
 mod jobs;
 mod openapi;
+mod retried;
 mod settings;
 mod slots;
 mod speed;
@@ -66,6 +67,8 @@ struct AppState {
     /// Cancelled when the daemon stops, so open WebSockets and streams close.
     shutdown: CancellationToken,
     links: Arc<stream::Links>,
+    /// `POST /jobs` requests seen lately, for when one is sent again.
+    retried: Arc<retried::Retried>,
     /// The OpenAPI description, as served at `/openapi.json`.
     spec: Arc<serde_json::Value>,
 }
@@ -143,6 +146,7 @@ pub fn router(
         access,
         shutdown,
         links: Arc::default(),
+        retried: Arc::default(),
         spec: Arc::new(spec),
     };
     let private = private_routes()

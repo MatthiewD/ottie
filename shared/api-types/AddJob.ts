@@ -46,4 +46,13 @@ referrer?: string,
 /**
  * The browser's user agent, sent instead of Ottie's, the same way.
  */
-userAgent?: string, };
+userAgent?: string, 
+/**
+ * Makes sending it again safe (docs/decisions/0060): a client that got
+ * no answer (a timeout, a lost connection) sends the same body with the
+ * same `requestId`, and gets the first one's answer instead of a second
+ * download, for 10 minutes (until Ottie restarts). Per token; 1 to 64
+ * letters, digits, `-` or `_`, random (a UUID). Ignored in
+ * `POST /jobs/batch`.
+ */
+requestId?: string, };

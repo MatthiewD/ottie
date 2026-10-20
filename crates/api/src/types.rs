@@ -181,6 +181,15 @@ pub struct AddJob {
     #[serde(default)]
     #[ts(optional)]
     pub user_agent: Option<String>,
+    /// Makes sending it again safe (docs/decisions/0060): a client that got
+    /// no answer (a timeout, a lost connection) sends the same body with the
+    /// same `requestId`, and gets the first one's answer instead of a second
+    /// download, for 10 minutes (until Ottie restarts). Per token; 1 to 64
+    /// letters, digits, `-` or `_`, random (a UUID). Ignored in
+    /// `POST /jobs/batch`.
+    #[serde(default)]
+    #[ts(optional)]
+    pub request_id: Option<String>,
 }
 
 /// What a download does when a file with its name is already in its folder
@@ -1415,6 +1424,8 @@ pub enum Reason {
     InvalidHeader {
         name: String,
     },
+    /// A `requestId` that isn't 1 to 64 letters, digits, `-` or `_`.
+    InvalidRequestId,
     /// More links at once than the setting `maxBatch` allows.
     TooManyLinks {
         #[ts(type = "number")]

@@ -52,7 +52,8 @@ pub(crate) async fn get(
 }
 
 /// Queues a download. It starts as soon as a slot is free, or waits for
-/// its start time (`scheduled`) if it has one.
+/// its start time (`scheduled`) if it has one. Sent again with the same
+/// `requestId`, it answers the first one's ID instead of adding another.
 #[utoipa::path(
     post,
     path = "/jobs",
@@ -61,7 +62,7 @@ pub(crate) async fn get(
     request_body = AddJob,
     responses(
         (status = CREATED, description = "Queued", body = Added),
-        (status = BAD_REQUEST, description = "`invalidUrl`, `unsupportedScheme`, `relativeFolder`, `nonUtf8Path`, `noFolder`, `stopBeforeStart` or `outOfRange` (`startAt`, `stopAt`: past the end of year 9999)", body = ApiError),
+        (status = BAD_REQUEST, description = "`invalidUrl`, `unsupportedScheme`, `relativeFolder`, `nonUtf8Path`, `noFolder`, `stopBeforeStart`, `outOfRange` (`startAt`, `stopAt`: past the end of year 9999) or `invalidRequestId`", body = ApiError),
         (status = FORBIDDEN, description = "`readOnly`, or `folderNotAllowed`: a device's `destDir` outside the folders it may use", body = ApiError),
         (status = NOT_FOUND, description = "`categoryNotFound`", body = ApiError),
         (status = UNPROCESSABLE_ENTITY, description = "`invalidBody`", body = ApiError),
@@ -73,8 +74,24 @@ pub(crate) async fn add(
     body: Result<Json<AddJob>, JsonRejection>,
 ) -> Result<(StatusCode, Json<Added>), Failure> {
     let Json(body) = body?;
+    let request = match &body.request_id {
+        Some(id) => Some(state.retried.request(caller.device(), id)?),
+        None => None,
+    };
+    // Held until it's added: the same request sent again meanwhile waits,
+    // then answers the same.
+    let mut added = match &request {
+        Some(request) => Some(request.added.lock().await),
+        None => None,
+    };
+    if let Some(id) = added.as_deref().copied().flatten() {
+        return Ok((StatusCode::CREATED, Json(Added { id: id.to_string() })));
+    }
     let folders = state.access.folders_for(&caller, &state.manager).await?;
     let id = state.manager.add(new_job(body, &folders)?).await?;
+    if let Some(added) = &mut added {
+        **added = Some(id);
+    }
     Ok((StatusCode::CREATED, Json(Added { id: id.to_string() })))
 }
 

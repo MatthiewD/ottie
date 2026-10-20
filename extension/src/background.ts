@@ -10,7 +10,7 @@ import type { AddJob } from '@ottie/api-types/AddJob';
 import { m } from '#ui/paraglide/messages.js';
 import { overwriteGetLocale } from '#ui/paraglide/runtime.js';
 import { cookieHeader } from './lib/cookies';
-import { addJob, removeJob, Unauthorized, Unreachable } from './lib/daemon';
+import { addJob, removeJob, Unauthorized, Unreachable, withRequestId } from './lib/daemon';
 import { onThisComputer, pairHere, startHere } from './lib/host';
 import { loadLook, pageLanguage } from './lib/look';
 import { batchAddress, linksInPage } from './lib/menus';
@@ -219,7 +219,8 @@ async function takeOver(item: chrome.downloads.DownloadItem): Promise<void> {
 /** Adds the job; where Ottie's host set this browser up, starts Ottie if
  * it doesn't answer, or signs in again if it refused the token, then tries
  * once more. The browser's download carries on meanwhile. */
-async function handOver(pairing: Pairing, job: AddJob): Promise<[Pairing, string]> {
+async function handOver(pairing: Pairing, asked: AddJob): Promise<[Pairing, string]> {
+	const job = withRequestId(asked);
 	try {
 		return [pairing, await addJob(pairing, job)];
 	} catch (error) {

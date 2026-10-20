@@ -1146,7 +1146,7 @@
         "tags": [
           "jobs"
         ],
-        "summary": "Queues a download. It starts as soon as a slot is free, or waits for\nits start time (`scheduled`) if it has one.",
+        "summary": "Queues a download. It starts as soon as a slot is free, or waits for\nits start time (`scheduled`) if it has one. Sent again with the same\n`requestId`, it answers the first one's ID instead of adding another.",
         "operationId": "addJob",
         "requestBody": {
           "content": {
@@ -1170,7 +1170,7 @@
             }
           },
           "400": {
-            "description": "`invalidUrl`, `unsupportedScheme`, `relativeFolder`, `nonUtf8Path`, `noFolder`, `stopBeforeStart` or `outOfRange` (`startAt`, `stopAt`: past the end of year 9999)",
+            "description": "`invalidUrl`, `unsupportedScheme`, `relativeFolder`, `nonUtf8Path`, `noFolder`, `stopBeforeStart`, `outOfRange` (`startAt`, `stopAt`: past the end of year 9999) or `invalidRequestId`",
             "content": {
               "application/json": {
                 "schema": {
@@ -3441,6 +3441,13 @@
             ],
             "description": "The page it came from (`Referer`), the same way."
           },
+          "requestId": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Makes sending it again safe (docs/decisions/0060): a client that got\nno answer (a timeout, a lost connection) sends the same body with the\nsame `requestId`, and gets the first one's answer instead of a second\ndownload, for 10 minutes (until Ottie restarts). Per token; 1 to 64\nletters, digits, `-` or `_`, random (a UUID). Ignored in\n`POST /jobs/batch`."
+          },
           "startAt": {
             "type": [
               "integer",
@@ -5563,6 +5570,21 @@
               },
               "name": {
                 "type": "string"
+              }
+            }
+          },
+          {
+            "type": "object",
+            "description": "A `requestId` that isn't 1 to 64 letters, digits, `-` or `_`.",
+            "required": [
+              "code"
+            ],
+            "properties": {
+              "code": {
+                "type": "string",
+                "enum": [
+                  "invalidRequestId"
+                ]
               }
             }
           },

@@ -108,7 +108,8 @@ crates/api/        ottie-api: axum router under /api/v1 (static UI serving from 
                      (access.json: names, SHA-256 of tokens, read-only); Caller (extractor); the folders a device
                      may write to; GET /access, PUT /access/folders, GET/POST /access/devices, DELETE /access/devices/{id}
   src/types.rs       wire types (camelCase JSON) + ts-rs export, From<engine types>
-  src/jobs.rs        GET/POST /jobs, GET /jobs/{id}, POST /jobs/{id}/pause|resume|cancel|category,
+  src/jobs.rs        GET/POST /jobs (a `requestId` sent again answers the first's ID: retried.rs, 0060),
+                     GET /jobs/{id}, POST /jobs/{id}/pause|resume|cancel|category,
                      PATCH /jobs/{id} (own speed limit, priority, streaming mode, start/stop time),
                      DELETE /jobs/{id},
                      POST /jobs/reorder (move waiting jobs in the queue), POST /jobs/batch (several at
@@ -122,6 +123,8 @@ crates/api/        ottie-api: axum router under /api/v1 (static UI serving from 
   src/slots.rs       GET/POST /slots (with the time zone), PUT/DELETE /slots/{id}, POST /slots/reorder
   src/speed.rs       GET /speed: the last hour of total speed, for the graph (0044)
   src/stream.rs      play links: POST /jobs/{id}/stream → GET /stream/{ticket}/{name} (no token, Range)
+  src/retried.rs     `POST /jobs` sent again (0060): each token's `requestId`s of the last 10 minutes (10,000 at most)
+                     and the job each added, in memory
   src/identity.rs    POST /identity (0058, no token): an HMAC of the client's nonce keyed with this computer's token;
                      nonce / proof / proven for clients (`ottie`)
   src/events.rs      GET /events WebSocket: changed / progress / removed / categoryChanged /
@@ -339,7 +342,8 @@ extension/         the browser extension (pnpm package `extension`; Manifest V3,
                      signs in through the host at install; the context menus
   src/lib/           plain logic, unit-tested (*.test.ts, Vitest): settings.ts (the extension's own, in
                      chrome.storage.local: pairing, take over, smallest size, sites left out), takeover.ts (which
-                     downloads go, and why not), daemon.ts (Ottie's API with this browser's token), host.ts (Ottie
+                     downloads go, and why not), daemon.ts (Ottie's API with this browser's token; a
+                     `requestId` per download handed over, kept for the second try, 0060), host.ts (Ottie
                      on this computer through its native host: sign in, start it), signin.ts
                      (a sign-in link), cookies.ts (the Cookie header), toolbar.ts (the toolbar's icon: the tray's otter in the
                      shade for the browser's dark mode), menus.ts (a page's links, Ottie's list for

@@ -137,6 +137,11 @@ impl Caller {
         self.read_only
     }
 
+    /// The device whose token it is; `None`: this computer's.
+    pub(crate) fn device(&self) -> Option<u32> {
+        self.device
+    }
+
     fn is_owner(&self) -> bool {
         self.device.is_none()
     }

@@ -120,6 +120,7 @@ impl Daemon {
             cookie: None,
             referrer: None,
             user_agent: None,
+            request_id: None,
         }
     }
 
@@ -320,6 +321,40 @@ async fn a_browsers_cookie_is_kept_but_never_given_back() {
     let body: serde_json::Value = response.json().await.unwrap();
     assert_eq!(body["code"], "invalidHeader");
     assert_eq!(body["name"], "cookie");
+}
+
+#[tokio::test]
+async fn a_download_sent_again_with_its_request_id_is_added_once() {
+    let d = &start().await;
+    let send = |request_id: &str| {
+        let job = AddJob {
+            request_id: Some(request_id.to_owned()),
+            ..d.new_job("file.bin")
+        };
+        async move {
+            let response = d.post("/jobs").json(&job).send().await.unwrap();
+            assert_eq!(response.status(), StatusCode::CREATED);
+            response.json::<Added>().await.unwrap().id
+        }
+    };
+    // The answer was lost: the client sends it again.
+    let first = send("c0ffee-1").await;
+    assert_eq!(send("c0ffee-1").await, first);
+    // Both at once: the second waits for the first.
+    let (one, two) = tokio::join!(send("c0ffee-2"), send("c0ffee-2"));
+    assert_eq!(one, two);
+    assert_ne!(one, first);
+    let jobs: Vec<Job> = d.get("/jobs").send().await.unwrap().json().await.unwrap();
+    assert_eq!(jobs.len(), 2);
+
+    let odd = AddJob {
+        request_id: Some("not one/".to_owned()),
+        ..d.new_job("file.bin")
+    };
+    let response = d.post("/jobs").json(&odd).send().await.unwrap();
+    assert_eq!(response.status(), StatusCode::BAD_REQUEST);
+    let body: serde_json::Value = response.json().await.unwrap();
+    assert_eq!(body["code"], "invalidRequestId");
 }
 
 #[tokio::test]

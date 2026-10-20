@@ -205,6 +205,8 @@ curl -H "Authorization: Bearer $TOKEN" -X DELETE $API/certificates/1           #
 
 A client handing over a download the browser started (the extension, docs/decisions/0055) can send what the browser would have: `cookie` (the `Cookie` header for that link), `referrer` (the page it came from) and `userAgent` (the browser's, sent instead of Ottie's). They go with every request of that download, and no other; on a redirect to another server, the cookie is left out. The daemon keeps them with the download, never gives them back (no job or event has them) and never logs them. A value with a line break, or over 32 KiB, is refused as `{"code": "invalidHeader", "name": "cookie"}`.
 
+A client that may send `POST /jobs` again when it gets no answer (a timeout, a lost connection: the download may have been added all the same) gives it a `requestId`, a random ID of 1 to 64 letters, digits, `-` or `_` (a UUID; else `invalidRequestId`), the same in every try (docs/decisions/0060). Sent again with the same one, by the same token, within 10 minutes, it answers `201` with the first one's ID instead of adding another; while the first is still being added, it waits for it. Only an added download is remembered: a refused request is checked again. The daemon keeps them in memory, so a restart forgets them. `POST /jobs/batch` ignores it.
+
 ```sh
 curl -H "Authorization: Bearer $TOKEN" -H 'Content-Type: application/json' \
   -d '{"url": "https://example.com/report.pdf", "cookie": "session=4f1c…",

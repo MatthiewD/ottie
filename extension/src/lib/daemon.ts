@@ -67,6 +67,13 @@ async function request(
 	return response;
 }
 
+/** The job with a `requestId` of its own, kept for every try: a try that
+ * got no answer may still have added it, and Ottie then answers the next
+ * with the same download instead of adding another (docs/decisions/0060). */
+export function withRequestId(job: AddJob): AddJob {
+	return job.requestId === undefined ? { ...job, requestId: crypto.randomUUID() } : job;
+}
+
 /** Adds a download; its ID. */
 export async function addJob(pairing: Pairing, job: AddJob): Promise<string> {
 	const response = await request(pairing, 'POST', '/jobs', job);
