@@ -42,6 +42,9 @@ const SAVE_LAST_USED_EVERY: u64 = 60 * 60 * 1000;
 /// The longest device name, in characters.
 const NAME_LIMIT: usize = 60;
 
+/// How often the token file is looked at besides each request.
+const TOKEN_CHECK: std::time::Duration = std::time::Duration::from_secs(2);
+
 /// What the daemon starts with.
 pub struct AccessConfig {
     /// This computer's token (the token file's).
@@ -233,6 +236,25 @@ impl Access {
             read_only,
             revoked: saved.revoked.entry(id).or_default().clone(),
         })
+    }
+
+    /// Looks at the token file every [`TOKEN_CHECK`] until `stop`, so a new
+    /// token closes the old one's event streams even when no request comes
+    /// to notice it (docs/decisions/0052).
+    pub(crate) fn watch_token_file(&self, stop: CancellationToken) {
+        if self.0.token_file.is_none() {
+            return;
+        }
+        let access = self.clone();
+        tokio::spawn(async move {
+            let mut every = tokio::time::interval(TOKEN_CHECK);
+            loop {
+                tokio::select! {
+                    _ = stop.cancelled() => return,
+                    _ = every.tick() => access.reload_owner(),
+                }
+            }
+        });
     }
 
     /// Reads the token file again if it changed. A read that fails or finds it

@@ -135,6 +135,7 @@ pub fn router(
 ) -> Router {
     // Can't fail: these types always serialize.
     let spec = serde_json::to_value(openapi()).unwrap_or_default();
+    access.watch_token_file(shutdown.clone());
     let state = AppState {
         manager,
         access,

@@ -1,5 +1,7 @@
 //! `GET /events`: a WebSocket that pushes job changes and progress.
 
+use std::time::Duration;
+
 use axum::extract::State;
 use axum::extract::ws::{Message, WebSocket, WebSocketUpgrade};
 use axum::response::Response;
@@ -98,10 +100,20 @@ async fn forward(
         let Ok(text) = serde_json::to_string(&message) else {
             continue; // Can't happen: these types always serialize.
         };
-        if socket.send(Message::Text(text.into())).await.is_err() {
+        // A client that stops reading can't hold up revoking or stopping.
+        let sent = tokio::select! {
+            _ = shutdown.cancelled() => break,
+            _ = revoked.cancelled() => break,
+            sent = socket.send(Message::Text(text.into())) => sent,
+        };
+        if sent.is_err() {
             return;
         }
     }
-    // Fails only if the client is already gone.
-    let _ = socket.send(Message::Close(None)).await;
+    // Fails only if the client is already gone; never waits long for one
+    // that doesn't read.
+    let _ = tokio::time::timeout(CLOSE_WAIT, socket.send(Message::Close(None))).await;
 }
+
+/// How long the goodbye may wait for a client.
+const CLOSE_WAIT: Duration = Duration::from_secs(1);

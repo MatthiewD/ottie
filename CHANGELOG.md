@@ -31,7 +31,7 @@ What changes in Ottie from one version to the next: new features, changes and fi
 - Secure connections (HTTPS, FTPS) use an updated version of rustls, the library behind them, which fixes four security advisories. None of them could be reached through the way Ottie uses it.
 - A device limited to some folders can no longer have files written outside them through a link inside an allowed folder followed by `..` (`link/../elsewhere`). A device's folder containing `..` is now refused.
 - Another device, even a read-only one, can no longer find out whether a file exists in a folder it isn't allowed to use, by asking what adding a link there would do.
-- A new token for this computer (`ottie token --new`) always takes effect at once. If Ottie read the token file while it was being written, it kept taking the old token until it restarted.
+- A new token for this computer (`ottie token --new`) always takes effect at once. If Ottie read the token file while it was being written, it kept taking the old token until it restarted. Live connections still open with the old token now close within two seconds too, even when nothing else reaches Ottie meanwhile.
 
 ## [0.1.0-experimental] - 2026-10-17
 

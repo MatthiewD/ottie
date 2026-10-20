@@ -49,6 +49,11 @@ async fn start() -> Daemon {
 }
 
 async fn start_with(ui: UiSource) -> Daemon {
+    let access = Access::open(AccessConfig::new(Token::new(TOKEN))).unwrap();
+    start_with_access(ui, access).await
+}
+
+async fn start_with_access(ui: UiSource, access: Access) -> Daemon {
     let files = Router::new()
         .route("/file.bin", get(|| async { vec![7u8; SIZE] }))
         .route("/slow.bin", get(|| async { slow_body() }));
@@ -59,7 +64,6 @@ async fn start_with(ui: UiSource) -> Daemon {
         .await
         .unwrap();
     let shutdown = CancellationToken::new();
-    let access = Access::open(AccessConfig::new(Token::new(TOKEN))).unwrap();
     let api = ottie_api::router(manager, access, shutdown.clone(), ui);
     Daemon {
         addr: serve(api).await,
@@ -1811,6 +1815,32 @@ async fn a_read_only_device_only_looks() {
         changed.send().await.unwrap().status(),
         StatusCode::FORBIDDEN
     );
+}
+
+#[tokio::test]
+async fn a_new_token_closes_the_old_one_s_streams_without_a_request() {
+    let folder = tempfile::tempdir().unwrap();
+    let token_file = folder.path().join("token");
+    std::fs::write(&token_file, TOKEN).unwrap();
+    let mut config = AccessConfig::new(Token::new(TOKEN));
+    config.token_file = Some(token_file.clone());
+    let d = start_with_access(UiSource::Embedded, Access::open(config).unwrap()).await;
+    let protocols = format!("{EVENTS_PROTOCOL}, {TOKEN_PROTOCOL_PREFIX}{TOKEN}");
+    let (mut events, _) = d.events(&protocols).await.unwrap();
+
+    // As `ottie token --new` does; nobody sends a request afterwards.
+    std::fs::write(&token_file, "a-new-token").unwrap();
+    let closed = tokio::time::timeout(TIMEOUT, async {
+        loop {
+            match events.next().await {
+                Some(Ok(Message::Close(_)) | Err(_)) | None => break,
+                Some(Ok(_)) => {}
+            }
+        }
+    });
+    closed
+        .await
+        .expect("the old token's events stream stayed open");
 }
 
 #[tokio::test]
