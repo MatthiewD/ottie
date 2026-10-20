@@ -8,8 +8,8 @@ use std::time::{Duration, Instant};
 
 use axum::http::StatusCode;
 use ottie_core::{
-    HttpBackend, HttpConfig, JobEvent, JobId, JobSnapshot, JobState, Manager, NewJob, Problem,
-    RetryPolicy, Store,
+    CategorySettings, HttpBackend, HttpConfig, JobEvent, JobId, JobSnapshot, JobState, Manager,
+    NewJob, Problem, RetryPolicy, Store,
 };
 use support::{TestServer, test_data};
 use tempfile::TempDir;
@@ -307,6 +307,47 @@ async fn a_failing_job_gives_way_after_its_in_slot_retries() {
     // The good one finishes; the bad one then uses up its retries and fails.
     assert!(at(waiting, Completed).unwrap() < at(failing, Failed).unwrap());
     assert_eq!(count(&log, failing, Retrying), 5);
+    s.assert_file("good.bin");
+}
+
+#[tokio::test]
+async fn a_failing_job_gives_way_when_its_category_is_full() {
+    // Room for three in all, but only one in the category: the waiting job
+    // is held back by the category, not by the total.
+    let mut s = setup(policy(5, 1), 3).await;
+    let category = s
+        .manager
+        .add_category(CategorySettings {
+            folder: Some(s.dir.path().to_owned()),
+            max_concurrent: 1,
+            ..CategorySettings::named("Busy")
+        })
+        .await
+        .unwrap();
+    let bad = server().await;
+    bad.configure(|b| b.fail_next = Some((StatusCode::BAD_GATEWAY, ALWAYS)));
+    let good = server().await;
+    let add = |server: &TestServer, name: &str| {
+        let url = server.url(&format!("/files/{name}"));
+        s.manager.add(NewJob::new(url).in_category(category))
+    };
+    let failing = add(&bad, "bad.bin").await.unwrap(); // the category's only slot
+    let waiting = add(&good, "good.bin").await.unwrap();
+    let log = s.run_to_end(&[failing, waiting]).await;
+
+    use JobState::*;
+    let at = |id, state| log.iter().position(|j| j.id == id && j.state == state);
+    let good_starts = at(waiting, Connecting).unwrap();
+    let before: Vec<_> = log[..good_starts]
+        .iter()
+        .filter(|j| j.id == failing)
+        .map(|j| j.state)
+        .collect();
+    assert_eq!(
+        before,
+        [Queued, Connecting, Retrying, Connecting, Retrying, Queued]
+    );
+    assert!(at(waiting, Completed).unwrap() < at(failing, Failed).unwrap());
     s.assert_file("good.bin");
 }
 

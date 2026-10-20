@@ -10,7 +10,7 @@ Accepted 2026-10-12.
 
 **Slots** (Mathieu's rule):
 - A retrying job keeps its download slot for its first `retries_before_yield` retries (default 3).
-- After that, if a queued job is waiting for a slot, it gives way: it goes back to Queued, behind every job that never gave way, whatever their priority (otherwise it would take the slot straight back).
+- After that, if a queued job is waiting for the slot it holds (one of the total's, or its category's when that category is at its own cap), it gives way: it goes back to Queued, behind every job that never gave way, whatever their priority (otherwise it would take the slot straight back).
 - With nobody waiting, it keeps its slot and goes on retrying.
 - After `max_retries` retries (default 10, 0 = never) it fails with its last error.
 

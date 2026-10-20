@@ -2393,8 +2393,9 @@ impl<B: Backend> Actor<B> {
     /// whose category is at its own cap: the highest priority first, and by
     /// place in the queue within a priority.
     ///
-    /// When every slot is taken, a `Retrying` job that has used its in-slot
-    /// retries gives its slot to a queued job, and queues behind the others.
+    /// When no queued job can start, every slot being taken or its
+    /// category's, a `Retrying` job that has used its in-slot retries gives
+    /// its slot to a queued job, and queues behind the others.
     fn schedule(&mut self) {
         if self.shutdown.is_some() {
             return;
@@ -2404,25 +2405,23 @@ impl<B: Backend> Actor<B> {
             for job in self.jobs.values().filter(|j| j.holds_slot()) {
                 *busy.entry(job.category).or_default() += 1;
             }
-            if busy.values().sum::<usize>() < self.max_concurrent() {
-                let Some(id) = self.next_queued(&busy) else {
-                    break;
-                };
+            let room = busy.values().sum::<usize>() < self.max_concurrent();
+            if let Some(id) = room.then(|| self.next_queued(&busy)).flatten() {
                 if !self.start_job(id) {
                     break;
                 }
-            } else {
-                let Some(id) = self.ready_to_give_way(&busy) else {
-                    break;
-                };
-                self.yields += 1;
-                let problem = self.jobs.get_mut(&id).and_then(|job| {
-                    job.gave_way = self.yields;
-                    job.problem.clone()
-                });
-                if !self.transition_or_log(id, JobState::Queued, problem) {
-                    break;
-                }
+                continue;
+            }
+            let Some(id) = self.ready_to_give_way(&busy) else {
+                break;
+            };
+            self.yields += 1;
+            let problem = self.jobs.get_mut(&id).and_then(|job| {
+                job.gave_way = self.yields;
+                job.problem.clone()
+            });
+            if !self.transition_or_log(id, JobState::Queued, problem) {
+                break;
             }
         }
     }
