@@ -122,6 +122,8 @@ crates/api/        ottie-api: axum router under /api/v1 (static UI serving from 
   src/slots.rs       GET/POST /slots (with the time zone), PUT/DELETE /slots/{id}, POST /slots/reorder
   src/speed.rs       GET /speed: the last hour of total speed, for the graph (0044)
   src/stream.rs      play links: POST /jobs/{id}/stream → GET /stream/{ticket}/{name} (no token, Range)
+  src/identity.rs    POST /identity (0058, no token): an HMAC of the client's nonce keyed with this computer's token;
+                     nonce / proof / proven for clients (`ottie`)
   src/events.rs      GET /events WebSocket: changed / progress / removed / categoryChanged /
                      categoryRemoved / settingsChanged / viewChanged / viewRemoved / slotChanged /
                      slotRemoved / resync
@@ -139,7 +141,8 @@ crates/ottie/      ottie: the binary  [exists]
   src/config.rs      folders (OS defaults / flags / OTTIE_* env / --system: the system service's), config.toml,
                      listen address
   src/token.rs       token file: created on first use (never for --system), `ottie token` prints it (`--new` replaces it)
-  src/device.rs      `ottie device add|list|remove` (0052): a client of the running daemon, with this computer's token
+  src/device.rs      `ottie device add|list|remove` (0052): a client of the running daemon, with this computer's token,
+                     sent only once what answers has proved it's this computer's Ottie (`check_identity`, 0058; `ottie open` too)
   src/native_host.rs the browser extension's native messaging host (0055): a browser starts `ottie` with the
                      extension's address (recognised before clap); one length-prefixed JSON message each way:
                      `pair` (starts Ottie if needed, adds a device named after the browser, gives its token) or `start`
@@ -156,7 +159,9 @@ app/               ottie-app: Tauri 2 shell (desktop; Android later, then with c
   src/main.rs        frameless window on the daemon's page (it draws its own title bar, 0019),
                      single instance, closing hides it (or quits, per app.json), stops the daemon it
                      started on exit
-  src/daemon.rs      find or start `ottie serve --managed` (the sidecar next to the app), ready / stop; at
+  src/identity.rs    whether what answers on Ottie's port is this computer's Ottie: its proof of the token (0058)
+  src/daemon.rs      find or start `ottie serve --managed` (the sidecar next to the app; one that answers counts only if
+                     it proves itself, 0058), ready / stop; at
                      sign-in, `ottie serve` on its own; at every start `ottie extension install --quiet` (0055)
   src/client.rs      the app as an API client: events WebSocket, jobs, settings, pause/resume, limit,
                      categories' file types, links in a text (preview), adding several, where a
@@ -453,6 +458,7 @@ Cloud sessions (Claude Code on the web): Ubuntu 24.04 on x86_64, 16 GB of RAM, 3
 
 - The daemon binds 127.0.0.1:24068 by default (`address`/`port` in config.toml, `--address`/`--port`, `OTTIE_ADDRESS`/`OTTIE_PORT`; flags win over the file). Remote access is opt-in, always requires a token, and should sit behind Tailscale, a VPN or a reverse proxy with HTTPS rather than be exposed directly (`docs/remote.md`).
 - Every API request carries a token (`docs/decisions/0014`): `Authorization: Bearer`, or for the events WebSocket the offered protocol `ottie.token.<token>` (never in a URL or a cookie). This computer's (32 random bytes, hex) lives in `<config>/token`, created on first use; `ottie serve` mentions where only when stdout is a terminal, never in logs. Unknown API paths also need it.
+- This computer's token goes only to a daemon that proved it knows it (`docs/decisions/0058`): `POST /api/v1/identity` answers an HMAC of a random nonce keyed with the token. The desktop app (for a daemon it didn't start), `ottie device`, the native host and `ottie open` check it first, and the app gives the local page its commands only after that. A `401` never counts as Ottie.
 - The extension's native host (`docs/decisions/0055`) gives a browser a full device token of its own; only the extensions its manifests name can start it (Chromium IDs in `extension.rs`, Firefox's gecko ID), and anyone who can run `ottie` here can read the token file anyway. It starts `ottie serve` out of the browser's reach (own process group; on Windows out of its job object when allowed), never with the browser's pipes.
 - Other devices get tokens of their own (`docs/decisions/0052`), full or read-only, kept as SHA-256 hashes in `<config>/access.json`; only this computer's token manages them and the folders list. A read-only token passes `auth::only_reads` (GET, and a few POSTs that change nothing): a new endpoint that changes nothing but isn't a GET must be listed there. Every handler that takes a folder from a client checks it with `Access::folders_for` (devices: categories' folders and those listed only).
 - The daemon's pages may be shown in a frame only by its own pages and browser extensions' (`frame-ancestors`): the extension's popup frames `/popup` and hands it the token by `postMessage`, which that page takes only from an extension's page that is its parent (`docs/decisions/0055`).

@@ -1223,6 +1223,25 @@ pub struct Device {
     pub last_used: Option<u64>,
 }
 
+/// Body of `POST /identity`.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, TS, ToSchema)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub struct IdentityChallenge {
+    /// 32 to 128 hex digits, random, new for each check.
+    pub nonce: String,
+}
+
+/// Answer of `POST /identity`.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, TS, ToSchema)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub struct IdentityProof {
+    /// HMAC-SHA256 of `ottie identity v1`, a line break, then the nonce,
+    /// keyed with this computer's token, as hex.
+    pub proof: String,
+}
+
 /// Body of `POST /access/devices`.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, TS, ToSchema)]
 #[serde(rename_all = "camelCase")]

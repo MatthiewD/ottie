@@ -170,7 +170,7 @@ mod tests {
     }
 
     #[test]
-    fn only_play_links_go_without_the_token() {
+    fn only_play_links_and_the_identity_proof_go_without_the_token() {
         let spec = serde_json::to_value(crate::openapi()).unwrap();
         let mut public = Vec::new();
         for (path, item) in spec["paths"].as_object().unwrap() {
@@ -182,7 +182,11 @@ mod tests {
         }
         assert_eq!(
             public,
-            ["/api/v1/stream/{ticket}", "/api/v1/stream/{ticket}/{name}"]
+            [
+                "/api/v1/identity",
+                "/api/v1/stream/{ticket}",
+                "/api/v1/stream/{ticket}/{name}"
+            ]
         );
     }
 }

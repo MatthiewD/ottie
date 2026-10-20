@@ -18,6 +18,10 @@ workspace = true
 axum = { version = "0.8.9", features = ["ws"] }
 futures-util = "0.3.34"
 getrandom = "0.4.3"
+# The daemon proves it knows this computer's token without receiving it
+# (POST /identity, docs/decisions/0058). The RustCrypto HMAC that goes with
+# sha2, already in the lockfile.
+hmac = "0.13.0"
 mime_guess = "2.0.5"
 ottie-core = { path = "../core", version = "0.1.0" }
 rust-embed = "8.13.0"

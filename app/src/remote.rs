@@ -254,6 +254,9 @@ pub async fn start_local(app: &AppHandle) -> anyhow::Result<Arc<Daemon>> {
     }
     let connection = daemon::connect(&switch.ottie, switch.local_link.clone()).await?;
     *crate::owned(app) = connection.started;
+    // Started by us, or it proved it's this computer's Ottie: its pages may
+    // have the app's commands.
+    crate::grant_local(app, &connection.link)?;
     let daemon = Arc::new(Daemon::new(&connection.link)?);
     *local = Some(daemon.clone());
     let followed = status::Followed::Local;

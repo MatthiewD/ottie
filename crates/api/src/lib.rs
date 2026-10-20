@@ -21,6 +21,7 @@ mod categories;
 mod certificates;
 mod error;
 mod events;
+pub mod identity;
 mod jobs;
 mod openapi;
 mod settings;
@@ -54,7 +55,7 @@ pub use types::{
     ViewFilters,
 };
 pub use types::{AddedSlot, Day, ReorderSlots, Slot, SlotBody, SlotDownloads, SlotList};
-pub use types::{TrustCertificate, TrustedCertificate};
+pub use types::{IdentityChallenge, IdentityProof, TrustCertificate, TrustedCertificate};
 pub use ui::UiSource;
 
 /// Shared by every request handler.
@@ -115,6 +116,7 @@ fn public_routes() -> OpenApiRouter<AppState> {
     OpenApiRouter::new()
         .routes(routes!(stream::serve))
         .routes(routes!(stream::serve_named))
+        .routes(routes!(identity::prove))
 }
 
 /// The OpenAPI description of the API, as `docs/api/openapi.json` holds it.

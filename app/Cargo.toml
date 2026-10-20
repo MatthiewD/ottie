@@ -18,6 +18,12 @@ anyhow = "1.0.104"
 # Clipboard monitoring (docs/decisions/0043): text only, no image support.
 arboard = { version = "3.7.0", default-features = false }
 futures-util = "0.3.34"
+# Whether what answers on Ottie's port is this computer's Ottie, before its
+# token goes there (docs/decisions/0058): the RustCrypto HMAC-SHA256 and
+# random nonces, as the daemon uses them; all three already in the lockfile.
+getrandom = "0.4.3"
+hmac = "0.13.0"
+sha2 = "0.11.1"
 open = "5.4.4"
 # Ottie's own notification sounds (docs/decisions/0038): Vorbis and WAV only.
 rodio = { version = "0.23.0", default-features = false, features = ["playback", "vorbis", "wav"] }

@@ -20,7 +20,7 @@ use ottie_api::{
 };
 use ottie_api::{AddedSlot, Day, ReorderSlots, Slot, SlotDownloads, SlotList};
 use ottie_api::{Device, FolderList};
-use ottie_api::{TrustCertificate, TrustedCertificate};
+use ottie_api::{IdentityChallenge, IdentityProof, TrustCertificate, TrustedCertificate};
 use ottie_core::{Manager, NativeBackend, Store};
 use reqwest::{RequestBuilder, StatusCode};
 use tempfile::TempDir;
@@ -1815,6 +1815,49 @@ async fn a_read_only_device_only_looks() {
         changed.send().await.unwrap().status(),
         StatusCode::FORBIDDEN
     );
+}
+
+#[tokio::test]
+async fn the_daemon_proves_it_knows_the_token_without_receiving_it() {
+    let d = start().await;
+    let nonce = ottie_api::identity::nonce().unwrap();
+    // No token: a client asks before it sends one.
+    let answer = d
+        .client
+        .post(d.url("/identity"))
+        .json(&IdentityChallenge {
+            nonce: nonce.clone(),
+        })
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(answer.status(), StatusCode::OK);
+    let IdentityProof { proof } = answer.json().await.unwrap();
+    assert!(ottie_api::identity::proven(TOKEN, &nonce, &proof));
+    assert!(!ottie_api::identity::proven(
+        "another token",
+        &nonce,
+        &proof
+    ));
+
+    for bad in [
+        "",
+        "abc",
+        "not hex but long enough to count as a nonce, see?",
+    ] {
+        let refused = d
+            .client
+            .post(d.url("/identity"))
+            .json(&IdentityChallenge { nonce: bad.into() })
+            .send()
+            .await
+            .unwrap();
+        let (status, refused) = error_of(refused).await;
+        assert_eq!(
+            (status, refused.reason),
+            (StatusCode::BAD_REQUEST, Reason::InvalidBody)
+        );
+    }
 }
 
 #[tokio::test]

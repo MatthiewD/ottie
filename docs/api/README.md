@@ -32,6 +32,8 @@ curl -H "Authorization: Bearer $TOKEN" http://127.0.0.1:24068/api/v1/jobs
 
 Without it, or with the wrong one, every path under `/api/v1` answers `401` (even unknown paths, so they don't reveal what exists). The token never goes in a URL or a cookie.
 
+Before sending this computer's token to an Ottie on this computer, a client can make sure that's what answers: `POST /api/v1/identity` with `{"nonce": "<32 to 128 hex digits, random, new each time>"}` needs no token and answers `{"proof": "…"}`, the HMAC-SHA256 of `ottie identity v1`, a line break and the nonce, keyed with the token, as hex. Compute the same and compare (in constant time); if they differ, something else holds the port, and it mustn't get the token. The desktop app and the `ottie` command do this.
+
 There are two exceptions. The events WebSocket takes the token in a different way (see [Live events](#live-events)), and play links need no token at all (see [Play while downloading](#play-while-downloading)).
 
 ### This computer and other devices

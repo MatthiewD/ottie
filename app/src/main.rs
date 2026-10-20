@@ -11,6 +11,7 @@ mod config;
 mod daemon;
 mod files;
 mod finish;
+mod identity;
 mod notify;
 mod player;
 mod popup;
@@ -246,7 +247,6 @@ async fn start(app: &AppHandle, shown: bool) -> anyhow::Result<()> {
     let ottie = daemon::sidecar()?;
     tauri::async_runtime::spawn(daemon::set_up_extension(ottie.clone()));
     let local = daemon::link(&ottie).await?;
-    grant_local(app, &local)?;
     app.manage(status::Feed::new());
     app.manage(popup::Popup::new());
     app.manage(finish::Finisher::new(&local));
@@ -322,7 +322,9 @@ fn cant_start(app: &AppHandle, err: &anyhow::Error) {
 /// This computer's daemon's pages get the app's commands
 /// (`PAGE_PERMISSIONS`). Its address is only known now, hence a runtime
 /// capability.
-fn grant_local(app: &AppHandle, link: &Url) -> tauri::Result<()> {
+/// Only once that daemon is known to be this computer's Ottie
+/// (`remote::start_local`, docs/decisions/0058).
+pub(crate) fn grant_local(app: &AppHandle, link: &Url) -> tauri::Result<()> {
     let page = PAGE_PERMISSIONS.into_iter().fold(
         CapabilityBuilder::new("page")
             .remote(link.origin().ascii_serialization())

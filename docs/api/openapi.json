@@ -955,6 +955,70 @@
         }
       }
     },
+    "/api/v1/identity": {
+      "post": {
+        "tags": [
+          "access"
+        ],
+        "summary": "Proves the daemon knows this computer's token, without the token: the\nanswer is HMAC-SHA256(token, \"ottie identity v1\\n\" + nonce), as hex.\nNeeds no token; ask it before sending one.",
+        "operationId": "proveIdentity",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/IdentityChallenge"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "The proof",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/IdentityProof"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "`invalidBody`: the nonce isn't 32 to 128 hex digits",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "`invalidBody`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "`stopping`: the daemon is shutting down",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {}
+        ]
+      }
+    },
     "/api/v1/jobs": {
       "get": {
         "tags": [
@@ -3900,6 +3964,32 @@
           }
         ],
         "description": "Something in the text that looks like a link (`scheme://…`)."
+      },
+      "IdentityChallenge": {
+        "type": "object",
+        "description": "Body of `POST /identity`.",
+        "required": [
+          "nonce"
+        ],
+        "properties": {
+          "nonce": {
+            "type": "string",
+            "description": "32 to 128 hex digits, random, new for each check."
+          }
+        }
+      },
+      "IdentityProof": {
+        "type": "object",
+        "description": "Answer of `POST /identity`.",
+        "required": [
+          "proof"
+        ],
+        "properties": {
+          "proof": {
+            "type": "string",
+            "description": "HMAC-SHA256 of `ottie identity v1`, a line break, then the nonce,\nkeyed with this computer's token, as hex."
+          }
+        }
       },
       "Job": {
         "type": "object",

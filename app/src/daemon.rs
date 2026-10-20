@@ -8,12 +8,12 @@ use std::process::{ExitStatus, Stdio};
 use std::time::Duration;
 
 use anyhow::{Context, Result, anyhow, bail};
-use reqwest::StatusCode;
 use tauri::Url;
 use tokio::io::{AsyncBufReadExt, AsyncRead, BufReader};
 use tokio::process::{Child, ChildStdin, Command};
 
 use crate::client;
+use crate::identity::{self, Found};
 
 /// A first start creates the database; a large one takes a moment to load.
 const STARTUP: Duration = Duration::from_secs(30);
@@ -62,13 +62,14 @@ pub async fn connect(ottie: &Path, link: Url) -> Result<Connection> {
         Err(failure) => failure,
     };
     // Usually: Ottie was already running (from a terminal, or as a service).
-    if answers(&link).await {
-        return Ok(Connection {
+    match found(&link).await {
+        Found::Ours => Ok(Connection {
             link,
             started: None,
-        });
+        }),
+        Found::Other => Err(not_ours(&link)),
+        Found::Nothing => Err(failure),
     }
-    Err(failure)
 }
 
 /// Starts `ottie serve` on its own, not tied to the app (which then quits),
@@ -91,13 +92,15 @@ pub async fn start_alone(ottie: &Path, log: &Path) -> Result<()> {
         .with_context(|| format!("can't start {}", ottie.display()))?;
     let waited = tokio::time::timeout(STARTUP, async {
         loop {
-            if answers(&link).await {
+            if found(&link).await == Found::Ours {
                 return Ok(());
             }
             if let Some(status) = child.try_wait()? {
-                // Another Ottie took the port while we looked: that one serves.
-                if answers(&link).await {
-                    return Ok(());
+                match found(&link).await {
+                    // Another Ottie took the port while we looked: that one serves.
+                    Found::Ours => return Ok(()),
+                    Found::Other => return Err(not_ours(&link)),
+                    Found::Nothing => {}
                 }
                 let text = std::fs::read_to_string(log).unwrap_or_default();
                 bail!(reason(text.lines(), status));
@@ -149,24 +152,19 @@ pub async fn set_up_extension(ottie: PathBuf) {
     }
 }
 
-/// Whether an Ottie daemon answers at the link's address. Refusing our token
-/// counts: it's Ottie started with other folders, and its page asks for one.
-async fn answers(link: &Url) -> bool {
-    let token = client::token(link);
-    let Ok(jobs) = link.join("/api/v1/jobs") else {
-        return false;
-    };
-    let client = reqwest::Client::builder()
-        .no_proxy()
-        .timeout(Duration::from_secs(5))
-        .build();
-    let Ok(client) = client else {
-        return false;
-    };
-    match client.get(jobs.as_str()).bearer_auth(token).send().await {
-        Ok(answer) => matches!(answer.status(), StatusCode::OK | StatusCode::UNAUTHORIZED),
-        Err(_) => false,
-    }
+/// What answers at the link's address: this computer's Ottie only if it
+/// proves it knows the token, which is never sent to find out
+/// (docs/decisions/0058).
+async fn found(link: &Url) -> Found {
+    identity::check(link, client::token(link)).await
+}
+
+/// Something holds Ottie's port but isn't this computer's Ottie.
+fn not_ours(link: &Url) -> anyhow::Error {
+    let at = link.origin().ascii_serialization();
+    anyhow!(
+        "what answers at {at} isn't your Ottie: it can't prove it knows this computer's token, so the token wasn't sent.          It may be Ottie started with other folders, an Ottie older than this app (restart it), or another program on that port"
+    )
 }
 
 fn command(ottie: &Path) -> Command {

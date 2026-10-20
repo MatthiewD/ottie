@@ -183,6 +183,52 @@ fn one_ottie_per_data_folder_whatever_the_port() {
 }
 
 #[test]
+fn another_program_on_the_port_never_gets_the_token() {
+    use std::io::{Read, Write};
+    use std::sync::{Arc, Mutex};
+
+    let dir = tempfile::tempdir().unwrap();
+    let token = {
+        let output = ottie(dir.path()).arg("token").output().unwrap();
+        String::from_utf8(output.stdout).unwrap().trim().to_owned()
+    };
+    // Answers 401 to everything, as Ottie does to an unknown token, and
+    // keeps what it was sent.
+    let impostor = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
+    let port = impostor.local_addr().unwrap().port().to_string();
+    let heard = Arc::new(Mutex::new(Vec::new()));
+    let keep = Arc::clone(&heard);
+    std::thread::spawn(move || {
+        for stream in impostor.incoming() {
+            let Ok(mut stream) = stream else { return };
+            let mut request = [0u8; 8192];
+            let read = stream.read(&mut request).unwrap_or(0);
+            keep.lock().unwrap().extend_from_slice(&request[..read]);
+            let _ = stream.write_all(
+                b"HTTP/1.1 401 Unauthorized\r\ncontent-length: 0\r\nconnection: close\r\n\r\n",
+            );
+        }
+    });
+
+    for command in [&["device", "list"][..], &["open"][..]] {
+        let output = ottie(dir.path())
+            .args(command)
+            .args(["--port", &port])
+            .output()
+            .unwrap();
+        assert!(!output.status.success(), "{command:?}");
+        let message = String::from_utf8(output.stderr).unwrap();
+        assert!(
+            message.contains("isn't your Ottie"),
+            "{command:?}: {message}"
+        );
+    }
+    let heard = String::from_utf8_lossy(&heard.lock().unwrap()).into_owned();
+    assert!(heard.contains("/api/v1/identity"), "{heard}");
+    assert!(!heard.contains(&token), "the token reached it: {heard}");
+}
+
+#[test]
 fn a_service_finds_why_it_stopped_in_its_log() {
     let dir = tempfile::tempdir().unwrap();
     let taken = std::net::TcpListener::bind("127.0.0.1:0").unwrap();

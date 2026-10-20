@@ -238,6 +238,12 @@ impl Access {
         })
     }
 
+    /// `f` with this computer's token as it is now (the token file's).
+    pub(crate) fn with_owner_token<T>(&self, f: impl FnOnce(&str) -> T) -> T {
+        self.reload_owner();
+        f(lock(&self.0.owner).token.as_str())
+    }
+
     /// Looks at the token file every [`TOKEN_CHECK`] until `stop`, so a new
     /// token closes the old one's event streams even when no request comes
     /// to notice it (docs/decisions/0052).

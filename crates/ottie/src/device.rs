@@ -4,9 +4,9 @@
 use std::net::SocketAddr;
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
-use anyhow::{Context, Result, bail};
+use anyhow::{Context, Result, anyhow, bail};
 use clap::{Args, Subcommand};
-use ottie_api::{AddDevice, AddedDevice, ApiError, Device};
+use ottie_api::{AddDevice, AddedDevice, ApiError, Device, IdentityChallenge, IdentityProof};
 
 use crate::config::{self, CONFIG_FILE, DaemonArgs, Dirs, FileConfig};
 use crate::token;
@@ -146,8 +146,10 @@ impl Client {
         format!("http://{}/api/v1{path}", config::local(self.addr))
     }
 
-    /// Sends it with this computer's token; a refusal becomes the error.
+    /// Sends it with this computer's token, once what answers has proved
+    /// it's this computer's Ottie; a refusal becomes the error.
     pub async fn send(&self, request: reqwest::RequestBuilder) -> Result<reqwest::Response> {
+        check_identity(&self.http, self.addr, &self.token).await?;
         let response = match request.bearer_auth(&self.token).send().await {
             Ok(response) => response,
             Err(err) if err.is_connect() => bail!(
@@ -165,6 +167,37 @@ impl Client {
             Err(_) => bail!("Ottie answered {status}"),
         }
     }
+}
+
+/// Makes sure what answers at `addr` is this computer's Ottie before its
+/// token goes there (docs/decisions/0058): it must prove it knows the token,
+/// without receiving it. Anything else on that port gets nothing.
+pub async fn check_identity(http: &reqwest::Client, addr: SocketAddr, token: &str) -> Result<()> {
+    let local = config::local(addr);
+    let nonce = ottie_api::identity::nonce()
+        .map_err(|err| anyhow!("no random numbers available: {err}"))?;
+    let challenge = IdentityChallenge {
+        nonce: nonce.clone(),
+    };
+    let url = format!("http://{local}/api/v1/identity");
+    let answer = match http.post(url).json(&challenge).send().await {
+        Ok(answer) => answer,
+        Err(err) if err.is_connect() => {
+            bail!("Ottie isn't running at {local}: start it with `ottie serve`")
+        }
+        Err(err) => return Err(err).context("Ottie didn't answer"),
+    };
+    let proven = answer.status().is_success()
+        && answer
+            .json::<IdentityProof>()
+            .await
+            .is_ok_and(|answer| ottie_api::identity::proven(token, &nonce, &answer.proof));
+    if !proven {
+        bail!(
+            "what answers at {local} isn't your Ottie: it can't prove it knows this computer's token, so the token wasn't sent.              It may be Ottie started with other folders, an Ottie older than this one (restart it), or another program on that port"
+        );
+    }
+    Ok(())
 }
 
 fn millis(at: SystemTime) -> u64 {
