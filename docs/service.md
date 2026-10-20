@@ -43,7 +43,7 @@ sudo ottie service uninstall --system
 | Its copy of `ottie` | `/usr/local/bin/ottie` | `%ProgramFiles%\Ottie Service\ottie.exe` |
 | Log | `journalctl -u ottie` | `%ProgramData%\Ottie\ottie.log` |
 
-A folder you choose for downloads must be writable by that account. On Linux, to read what it downloads into `/var/lib/ottie`, join its group: `sudo usermod -aG ottie $USER`. Uninstalling keeps the folder, the account and the copy, and says how to remove them.
+A folder you choose for downloads must be writable by that account. On Linux, to read what it downloads into `/var/lib/ottie`, join its group: `sudo usermod -aG ottie $USER`. The group reads downloads only: the database (which keeps the cookies and FTP passwords downloads were given), the token and `access.json` are the `ottie` account's alone. Uninstalling keeps the folder, the account and the copy, and says how to remove them.
 
 Not on macOS yet: install it for yourself, or use Docker.
 

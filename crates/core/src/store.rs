@@ -550,23 +550,27 @@ impl Store {
     /// Opens (or creates) the database file and brings its schema up to date.
     pub async fn open(path: impl Into<PathBuf>) -> Result<Store, Error> {
         let path = path.into();
-        Self::spawn(move || Connection::open(path)).await
+        Self::spawn(move || {
+            keep_private(&path)?;
+            Ok(Connection::open(path)?)
+        })
+        .await
     }
 
     /// A database that only lives in memory, for tests and experiments.
     pub async fn open_in_memory() -> Result<Store, Error> {
-        Self::spawn(Connection::open_in_memory).await
+        Self::spawn(|| Ok(Connection::open_in_memory()?)).await
     }
 
     async fn spawn(
-        open: impl FnOnce() -> rusqlite::Result<Connection> + Send + 'static,
+        open: impl FnOnce() -> Result<Connection, Error> + Send + 'static,
     ) -> Result<Store, Error> {
         let (ops, requests) = std_mpsc::channel();
         let (ready, opened) = oneshot::channel();
         thread::Builder::new()
             .name("ottie-store".to_owned())
             .spawn(move || {
-                let conn = open().map_err(Error::from).and_then(|mut conn| {
+                let conn = open().and_then(|mut conn| {
                     prepare(&mut conn)?;
                     Ok(conn)
                 });
@@ -1596,6 +1600,43 @@ fn parse_state(name: &str) -> Option<JobState> {
     })
 }
 
+/// The database holds cookies and links with passwords: only its owner may
+/// read it, not the group a system service shares its downloads with
+/// (`docs/service.md`). On Unix, a new one is made `0600`, and one made
+/// before (with its `-wal` and `-shm`) is set to it; SQLite gives the files
+/// it adds later the database's own mode. Elsewhere its folder keeps it
+/// private.
+#[cfg(unix)]
+fn keep_private(path: &std::path::Path) -> std::io::Result<()> {
+    use std::io::ErrorKind;
+    use std::os::unix::fs::{OpenOptionsExt, PermissionsExt};
+
+    let created = std::fs::OpenOptions::new()
+        .write(true)
+        .create_new(true)
+        .mode(0o600)
+        .open(path);
+    match created {
+        Ok(_) => {}
+        Err(err) if err.kind() == ErrorKind::AlreadyExists => {}
+        Err(err) => return Err(err),
+    }
+    for suffix in ["", "-wal", "-shm"] {
+        let mut file = path.as_os_str().to_owned();
+        file.push(suffix);
+        match std::fs::set_permissions(&file, std::fs::Permissions::from_mode(0o600)) {
+            Err(err) if err.kind() != ErrorKind::NotFound => return Err(err),
+            _ => {}
+        }
+    }
+    Ok(())
+}
+
+#[cfg(not(unix))]
+fn keep_private(_: &std::path::Path) -> std::io::Result<()> {
+    Ok(())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -2262,5 +2303,31 @@ mod tests {
         assert_eq!(version, MIGRATIONS.len());
         // Running again is a no-op.
         prepare(&mut conn).unwrap();
+    }
+
+    #[cfg(unix)]
+    #[tokio::test]
+    async fn only_its_owner_reads_the_database() {
+        use std::os::unix::fs::PermissionsExt;
+
+        let mode =
+            |path: &std::path::Path| std::fs::metadata(path).unwrap().permissions().mode() & 0o777;
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("ottie.db");
+        let store = Store::open(&path).await.unwrap();
+        store.flush().await;
+        assert_eq!(mode(&path), 0o600);
+        let wal = dir.path().join("ottie.db-wal");
+        if wal.exists() {
+            assert_eq!(mode(&wal), 0o600);
+        }
+        drop(store);
+
+        // One made before, readable by the group: tightened.
+        let older = dir.path().join("older.db");
+        std::fs::write(&older, b"").unwrap();
+        std::fs::set_permissions(&older, std::fs::Permissions::from_mode(0o640)).unwrap();
+        Store::open(&older).await.unwrap();
+        assert_eq!(mode(&older), 0o600);
     }
 }
