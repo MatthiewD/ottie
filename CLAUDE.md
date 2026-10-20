@@ -1,6 +1,6 @@
 # CLAUDE.md
 
-**Ottie**: a cross-platform download manager meant to replace uGet (unmaintained). Licensed MPL-2.0. Repo: `github.com/Matfalco/ottie`.
+**Ottie**: a cross-platform download manager meant to replace uGet (unmaintained). Licensed MPL-2.0. Repo: `github.com/MatthiewD/ottie`.
 
 ## Naming
 

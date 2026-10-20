@@ -1,4 +1,4 @@
-**An experimental build, for testing.** Things will break, and what Ottie saves may change before 1.0. Keep a copy of anything you can't lose, and please report what goes wrong in [Issues](https://github.com/Matfalco/ottie/issues): your system, what you did, what happened.
+**An experimental build, for testing.** Things will break, and what Ottie saves may change before 1.0. Keep a copy of anything you can't lose, and please report what goes wrong in [Issues](https://github.com/MatthiewD/ottie/issues): your system, what you did, what happened.
 
 ## Which file
 

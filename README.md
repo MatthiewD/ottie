@@ -10,7 +10,7 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/Matfalco/ottie/releases"><img alt="Latest release" src="https://img.shields.io/github/v/release/Matfalco/ottie?include_prereleases&label=release"></a>
+  <a href="https://github.com/MatthiewD/ottie/releases"><img alt="Latest release" src="https://img.shields.io/github/v/release/MatthiewD/ottie?include_prereleases&label=release"></a>
   <a href="LICENSE"><img alt="License: MPL-2.0" src="https://img.shields.io/badge/license-MPL--2.0-blue"></a>
 </p>
 
@@ -88,7 +88,7 @@ The downloads in these pictures are made up.
 
 ## Install
 
-Ottie is in its first test release: download it from the [Releases page](https://github.com/Matfalco/ottie/releases) (pick the latest "Experimental" one).
+Ottie is in its first test release: download it from the [Releases page](https://github.com/MatthiewD/ottie/releases) (pick the latest "Experimental" one).
 
 ### Desktop app
 
@@ -125,7 +125,7 @@ Ottie runs fine without a screen: `ottie serve` downloads and serves the web UI.
 You need [Rust](https://rustup.rs/) (stable), [Node.js](https://nodejs.org/) 22 or later and [pnpm](https://pnpm.io/). On Linux, the desktop app also needs the WebKitGTK 4.1, AppIndicator and ALSA development packages ([Tauri's list](https://v2.tauri.app/start/prerequisites/)).
 
 ```bash
-git clone https://github.com/Matfalco/ottie.git
+git clone https://github.com/MatthiewD/ottie.git
 cd ottie
 pnpm install
 pnpm --filter ui build                 # the web UI, built into the daemon
@@ -147,7 +147,7 @@ Then `ottie serve` runs the daemon on 127.0.0.1:24068 and `ottie open` opens the
 
 ## Disclaimer
 
-- **Experimental software.** Things will break, and what Ottie saves (its database, its settings) may change before 1.0. Keep a copy of anything you can't afford to lose, and please [report what goes wrong](https://github.com/Matfalco/ottie/issues): your system, what you did, what happened. Ottie comes with no warranty (see the [licence](LICENSE)).
+- **Experimental software.** Things will break, and what Ottie saves (its database, its settings) may change before 1.0. Keep a copy of anything you can't afford to lose, and please [report what goes wrong](https://github.com/MatthiewD/ottie/issues): your system, what you did, what happened. Ottie comes with no warranty (see the [licence](LICENSE)).
 - **Ottie is a network app; mind its security.** It's a program that runs in the background, downloads from the internet and answers on a network port. Out of the box it only answers on your own computer, and every request needs a token. Treat that token, and every sign-in link Ottie gives you, like a password: whoever holds one can control your downloads and save files into your folders. To use Ottie from other devices, go through Tailscale, a VPN or a reverse proxy with HTTPS ([how](docs/remote.md)), never by opening its port to the internet, and remove a device's access when you no longer use it. Download only from sources you trust, and treat downloaded files as you would any other.
 - **Use it lawfully.** You're responsible for what you download: respect copyright and the terms of the sites you download from.
 - **Not affiliated with uGet.** Ottie is a separate project, inspired by uGet, and isn't made or endorsed by its authors.

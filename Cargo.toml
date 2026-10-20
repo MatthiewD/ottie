@@ -5,7 +5,7 @@ members = ["app", "crates/api", "crates/core", "crates/ottie"]
 [workspace.package]
 edition = "2024"
 license = "MPL-2.0"
-repository = "https://github.com/Matfalco/ottie"
+repository = "https://github.com/MatthiewD/ottie"
 publish = false
 
 [workspace.lints.clippy]

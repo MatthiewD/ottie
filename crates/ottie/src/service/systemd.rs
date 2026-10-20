@@ -24,7 +24,7 @@ pub fn unit(exe: &str, args: &[String], system: bool) -> String {
         "# Written by `ottie service install`; `ottie service uninstall` removes it.\n\
          [Unit]\n\
          Description=Ottie download manager\n\
-         Documentation=https://github.com/Matfalco/ottie\n",
+         Documentation=https://github.com/MatthiewD/ottie\n",
     );
     if system {
         text.push_str("Wants=network-online.target\nAfter=network-online.target\n");

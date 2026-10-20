@@ -39,7 +39,7 @@ const WINDOW: &str = "main";
 const PLAY_PATH: &str = "/api/v1/stream/";
 /// Ottie's own pages on the web (e.g. to help translate it), which the page
 /// may open in the system's browser.
-const PROJECT: &str = "https://github.com/Matfalco/ottie/";
+const PROJECT: &str = "https://github.com/MatthiewD/ottie/";
 
 /// What the page may do in the app: control its window, since it draws its
 /// own title bar (docs/decisions/0019), open the system folder picker, which

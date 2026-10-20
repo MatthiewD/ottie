@@ -81,7 +81,7 @@ export function direction(locale: Locale): 'ltr' | 'rtl' {
 }
 
 /** Where people can help with a translation. */
-export const HELP_TRANSLATE = 'https://github.com/Matfalco/ottie/issues';
+export const HELP_TRANSLATE = 'https://github.com/MatthiewD/ottie/issues';
 
 /** The languages, in the picker's order: by name, as people read them. */
 export function sortedLocales(): Locale[] {

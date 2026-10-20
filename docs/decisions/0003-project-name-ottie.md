@@ -14,4 +14,4 @@ Accepted 2026-10-12. Supersedes [0001](0001-package-names.md).
 **Reserving the name** (checked 2026-10-12)
 - crates.io: `ottie` is free. `ottie` 0.0.1 is prepared in `crates/ottie` as a small, genuine release (`--help`, `--version`); Mathieu publishes it. `ottie-core`, `ottie-api`, `ottied`, `ottie-cli`, `ottie-app` and `ottie-daemon` were also free.
 - npm: `ottie` is free. Only worth taking if we ever publish a JS package.
-- GitHub: `github.com/ottie` is an existing user account, so the repo is `github.com/Matfalco/ottie`.
+- GitHub: `github.com/ottie` is an existing user account, so the repo was `github.com/Matfalco/ottie`; it's `github.com/MatthiewD/ottie` since the account was renamed (2026-10-20).
