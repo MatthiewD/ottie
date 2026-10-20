@@ -236,7 +236,8 @@ ui/                SvelteKit SPA shared by all front ends (pnpm package `ui`)  [
                      finish/+page.svelte (its countdown window: Countdown), caught/+page.svelte (its
                      window for links copied elsewhere: Caught)
   src/lib/api.ts     fetch + WebSocket client for /api/v1 (Unauthorized, ApiFailure)
-  src/lib/session.svelte.ts  live job list: events WebSocket, reconnect, buffered resync
+  src/lib/session.svelte.ts  live job list: events WebSocket, reconnect, buffered resync (a snapshot from before a
+                     reconnect is fetched again; a failed one is tried again, 1 s up to 10 s; session.test.ts)
   src/lib/context.ts what every page shares (session, run): Svelte createContext
   src/lib/jobs.ts, categories.ts, status.ts, selection.ts (clicks, Shift ranges, the arrows' cursor), filetypes.ts,
                      bulk.ts (actions on the selection; what Pause all / Resume all act on),

@@ -37,6 +37,9 @@ export type Answer<T> = { ok: true; value: T } | { ok: false; why: string | null
 
 const FIRST_RETRY_MS = 500;
 const LONGEST_RETRY_MS = 10_000;
+/** A snapshot that failed is fetched again after this, doubled each time up
+ * to `LONGEST_RETRY_MS`. */
+const FIRST_SNAPSHOT_RETRY_MS = 1000;
 
 export class Session {
 	jobs: Jobs = $state({});
@@ -81,9 +84,15 @@ export class Session {
 	/** Events that arrive while the list is being fetched: applied after it. */
 	private pending: ApiEvent[] | null = null;
 	private retryMs = FIRST_RETRY_MS;
-	/** The clock and a reconnect waiting to happen, cleared on `stop`. */
+	private snapshotRetryMs = FIRST_SNAPSHOT_RETRY_MS;
+	/** The clock, and a reconnect or a snapshot waiting to happen, cleared on `stop`. */
 	private timers = new Set<ReturnType<typeof setTimeout>>();
 	private stopped = false;
+	/** Counts the sockets opened and closed (and `stop`): a snapshot started
+	 * under an earlier one may miss what changed since, so it's fetched again. */
+	private generation = 0;
+	/** The events socket is open: what a snapshot shows is then kept live. */
+	private open = false;
 	/** When the daemon's speed history last came: the page's own rates take
 	 * a moment to measure after that (see `nextSample`). */
 	private historyAt = 0;
@@ -110,6 +119,7 @@ export class Session {
 
 	stop(): void {
 		this.stopped = true;
+		this.generation += 1;
 		this.socket?.close();
 		this.timers.forEach((timer) => clearTimeout(timer));
 	}
@@ -404,13 +414,23 @@ export class Session {
 		this.socket = socket;
 		socket.onopen = () => {
 			opened = true;
+			this.open = true;
 			this.retryMs = FIRST_RETRY_MS;
+			this.generation += 1;
+			if (this.pending) {
+				// A snapshot is on its way, but from before this socket: it's
+				// fetched again. What the socket before sent is in the new one,
+				// and played after it, could bring an old state back.
+				this.pending = [];
+			}
 			void this.resync();
 		};
 		socket.onmessage = (message: MessageEvent<string>) => {
 			this.receive(JSON.parse(message.data) as ApiEvent);
 		};
 		socket.onclose = () => {
+			this.open = false;
+			this.generation += 1;
 			if (this.stopped) {
 				return;
 			}
@@ -454,22 +474,26 @@ export class Session {
 	}
 
 	/** Fetches the whole list, then replays what arrived meanwhile. Events are
-	 * full states in order, so the replay always ends on the latest state. */
+	 * full states in order, so the replay always ends on the latest state.
+	 * A snapshot started before the socket reconnected is fetched again; one
+	 * that fails is tried again a moment later, and the page says it's
+	 * connecting until one comes. */
 	private async resync(): Promise<void> {
 		if (this.pending) {
 			return; // Already fetching.
 		}
 		this.pending = [];
 		try {
-			const [jobs, categories, settings, views, slots, speed, access] = await Promise.all([
-				this.api.listJobs(),
-				this.api.listCategories(),
-				this.api.getSettings(),
-				this.api.listViews(),
-				this.api.listSlots(),
-				this.api.speedHistory(),
-				this.api.getAccess()
-			]);
+			let generation: number;
+			let snapshot: Snapshot;
+			do {
+				generation = this.generation;
+				snapshot = await this.snapshot();
+			} while (generation !== this.generation && this.open && !this.stopped);
+			if (generation !== this.generation || this.stopped) {
+				return; // Closed meanwhile: the next socket's open fetches one.
+			}
+			const { jobs, categories, settings, views, slots, speed, access } = snapshot;
 			this.access = access;
 			this.history = speed.samples;
 			this.historyAt = Date.now();
@@ -480,12 +504,56 @@ export class Session {
 			this.slots = Object.fromEntries(slots.slots.map((slot) => [slot.id, slot]));
 			this.timeZone = slots.timeZone;
 			this.connection = 'live';
+			this.snapshotRetryMs = FIRST_SNAPSHOT_RETRY_MS;
 		} catch (error) {
 			this.fail(error);
+			this.retrySnapshot();
 		} finally {
 			const missed = this.pending ?? [];
 			this.pending = null;
 			missed.forEach((event) => this.receive(event));
 		}
 	}
+
+	private async snapshot(): Promise<Snapshot> {
+		const [jobs, categories, settings, views, slots, speed, access] = await Promise.all([
+			this.api.listJobs(),
+			this.api.listCategories(),
+			this.api.getSettings(),
+			this.api.listViews(),
+			this.api.listSlots(),
+			this.api.speedHistory(),
+			this.api.getAccess()
+		]);
+		return { jobs, categories, settings, views, slots, speed, access };
+	}
+
+	/** After a failed snapshot: another a moment later, while the same socket
+	 * is open (a reconnect fetches one anyway). Signed out: none. */
+	private retrySnapshot(): void {
+		if (this.stopped || !this.open) {
+			return;
+		}
+		this.connection = 'connecting';
+		const generation = this.generation;
+		const retry = setTimeout(() => {
+			this.timers.delete(retry);
+			if (this.generation === generation) {
+				void this.resync();
+			}
+		}, this.snapshotRetryMs);
+		this.timers.add(retry);
+		this.snapshotRetryMs = Math.min(this.snapshotRetryMs * 2, LONGEST_RETRY_MS);
+	}
 }
+
+/** Everything `resync` fetches, at once. */
+type Snapshot = {
+	jobs: Awaited<ReturnType<Api['listJobs']>>;
+	categories: Awaited<ReturnType<Api['listCategories']>>;
+	settings: Settings;
+	views: Awaited<ReturnType<Api['listViews']>>;
+	slots: Awaited<ReturnType<Api['listSlots']>>;
+	speed: Awaited<ReturnType<Api['speedHistory']>>;
+	access: AccessInfo;
+};
