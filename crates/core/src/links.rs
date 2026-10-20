@@ -46,23 +46,35 @@ pub enum LinkPreview {
     },
 }
 
+/// The most text the links of one paste may add up to: past this, long
+/// links in a sequence would take memory by the gigabyte.
+const MAX_BYTES: usize = 64 * 1024 * 1024;
+
 /// Every link in `text`, in order, each once: anything of the form
 /// `scheme://…` up to a space, a quote or an angle bracket, without the
 /// punctuation that ends a sentence around it. A sequence in a link gives
 /// each link it holds (docs/decisions/0037). [`Error::TooManyLinks`] if
-/// there would be more than `max`, counted before making them.
+/// there would be more than `max`, or more than [`MAX_BYTES`] of them (then
+/// `max` is how many of them would fit), counted before making them.
 pub fn find(text: &str, max: usize) -> Result<Vec<Found>, Error> {
     let mut candidates = Vec::new();
     let mut seen = HashSet::new();
-    let mut count: usize = 0;
+    let (mut count, mut bytes): (usize, usize) = (0, 0);
     for candidate in candidates_in(text) {
         if seen.insert(candidate) {
             let sequence = Sequence::parse(candidate);
             count = count.saturating_add(sequence.count());
+            // No link of a sequence is longer than the sequence as written.
+            bytes = bytes.saturating_add(sequence.count().saturating_mul(candidate.len()));
             candidates.push((candidate, sequence));
         }
     }
     if count > max {
+        return Err(Error::TooManyLinks { count, max });
+    }
+    if bytes > MAX_BYTES {
+        let fit = MAX_BYTES as u128 * count as u128 / bytes as u128;
+        let max = usize::try_from(fit).unwrap_or(usize::MAX);
         return Err(Error::TooManyLinks { count, max });
     }
     let mut found = Vec::new();
@@ -154,26 +166,37 @@ fn is_boundary(c: char) -> bool {
 /// Without what likely belongs to the sentence around it: a final full stop,
 /// comma or quote, or a closing bracket the link doesn't open itself (as in
 /// "(see https://example.com/a)", but not "https://en.wikipedia.org/wiki/Otter_(disambiguation)").
+/// The brackets are counted once, then kept up as they go, so a long run of
+/// them takes linear time.
 fn trim_end(link: &str) -> &str {
+    let mut counts = [0usize; BRACKETS.len()];
+    for c in link.chars() {
+        if let Some(i) = BRACKETS.iter().position(|&b| b == c) {
+            counts[i] += 1;
+        }
+    }
     let mut link = link;
     while let Some(last) = link.chars().next_back() {
-        let open = match last {
-            ')' => Some('('),
-            ']' => Some('['),
-            '}' => Some('{'),
-            _ => None,
-        };
-        let trailing = match open {
-            Some(open) => link.matches(open).count() < link.matches(last).count(),
+        let bracket = BRACKETS.iter().position(|&b| b == last);
+        let trailing = match bracket {
+            // A closing one (odd index): more of them than of its opening one.
+            Some(i) if i % 2 == 1 => counts[i - 1] < counts[i],
+            Some(_) => false,
             None => matches!(last, '.' | ',' | ';' | ':' | '!' | '?' | '\''),
         };
         if !trailing {
             break;
         }
+        if let Some(i) = bracket {
+            counts[i] -= 1;
+        }
         link = &link[..link.len() - last.len_utf8()];
     }
     link
 }
+
+/// Each opening bracket, then its closing one.
+const BRACKETS: [char; 6] = ['(', ')', '[', ']', '{', '}'];
 
 #[cfg(test)]
 mod tests {
@@ -363,5 +386,39 @@ mod tests {
     fn no_links() {
         assert!(found("").is_empty());
         assert!(found("nothing to see, not even example.com/a.zip").is_empty());
+    }
+
+    #[test]
+    fn long_runs_of_brackets_are_read_in_linear_time() {
+        for filler in [")", "]", "}", "[", "{"] {
+            let text = format!("https://example.com/{}", filler.repeat(100_000));
+            let start = std::time::Instant::now();
+            let _ = find(&text, usize::MAX);
+            let took = start.elapsed();
+            assert!(
+                took < std::time::Duration::from_secs(1),
+                "{filler}: {took:?}"
+            );
+        }
+    }
+
+    #[test]
+    fn long_links_in_a_sequence_are_refused_before_they_are_made() {
+        let text = format!("https://example.com/{}/[1-10000].bin", "x".repeat(1 << 20));
+        let start = std::time::Instant::now();
+        let Err(Error::TooManyLinks { count, max }) = find(&text, 10_000) else {
+            panic!("expected too many links");
+        };
+        assert_eq!(count, 10_000);
+        // About 64 of these 1 MiB links fit.
+        assert!((60..=64).contains(&max), "{max}");
+        assert!(start.elapsed() < std::time::Duration::from_secs(1));
+        // Short ones still go up to the count.
+        assert_eq!(
+            find("https://example.com/[1-10000].bin", 10_000)
+                .unwrap()
+                .len(),
+            10_000
+        );
     }
 }

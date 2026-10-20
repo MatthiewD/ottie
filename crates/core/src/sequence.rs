@@ -166,10 +166,16 @@ fn escaped(text: &str) -> Option<char> {
     }
 }
 
+/// The longest a range can be written: two 20-digit numbers (`u64`), a
+/// step, `[`, `-`, `:` and `]`. Looking no further for its `]` keeps a link
+/// full of `[` from being read again from each one.
+const MAX_RANGE: usize = 64;
+
 /// `[first-last]` or `[first-last:step]` at the start of `text` (which
 /// starts with `[`), and its length.
 fn range(text: &str) -> Option<(Part, usize)> {
-    let len = text.find(']')? + 1;
+    // `]` is ASCII: its byte index is where it starts.
+    let len = text.bytes().take(MAX_RANGE).position(|b| b == b']')? + 1;
     let inside = &text[1..len - 1];
     let (bounds, step) = match inside.split_once(':') {
         Some((bounds, step)) => (bounds, Some(step)),

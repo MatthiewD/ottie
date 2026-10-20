@@ -173,7 +173,12 @@ impl Manager {
         // Read here, so the manager isn't kept from its jobs meanwhile. The
         // cap is checked here too, before a sequence makes its links.
         let max = self.settings().await?.max_batch;
-        let found = links::find(text, max)?;
+        // Off the async threads: a big paste takes a while to read.
+        let text = text.to_owned();
+        let found = tokio::task::spawn_blocking(move || links::find(&text, max))
+            .await
+            // Only when the runtime is shutting down: nothing in there panics.
+            .map_err(|_| Error::ManagerStopped)??;
         let mut previews = self
             .request(|reply| Command::Preview {
                 found,
