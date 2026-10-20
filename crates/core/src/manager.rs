@@ -51,6 +51,9 @@ const EVENT_BUFFER: usize = 1024;
 /// Start and stop times are checked against the clock at least this often:
 /// the computer may have slept, or its clock changed, while waiting.
 const CLOCK_CHECK: Duration = Duration::from_secs(30);
+/// How long the actor waits for a cancelled job's file to be deleted; the
+/// deletion carries on after that, on its own.
+const DELETE_WAIT: Duration = Duration::from_secs(1);
 
 /// Handle to the job manager. Cheap to clone; every clone talks to the same jobs.
 #[derive(Clone)]
@@ -3211,14 +3214,23 @@ impl<B: Backend> Actor<B> {
         });
     }
 
+    /// Deletes a cancelled job's `.part.ottie`: before its caller is answered,
+    /// unless the drive takes over `DELETE_WAIT` (a network share gone
+    /// silent). The deletion then carries on by itself, and the actor with
+    /// every other command.
     async fn delete_part(&self, id: JobId) {
         let Some(part) = self.jobs.get(&id).and_then(|job| job.download.part_path()) else {
             return;
         };
-        if let Err(err) = tokio::fs::remove_file(&part).await
-            && err.kind() != io::ErrorKind::NotFound
-        {
-            tracing::warn!(%id, error = %err, "could not delete .part.ottie file");
+        let deleting = tokio::spawn(async move {
+            if let Err(err) = tokio::fs::remove_file(&part).await
+                && err.kind() != io::ErrorKind::NotFound
+            {
+                tracing::warn!(%id, error = %err, "could not delete .part.ottie file");
+            }
+        });
+        if tokio::time::timeout(DELETE_WAIT, deleting).await.is_err() {
+            tracing::warn!(%id, "the drive is slow to delete the .part.ottie file; not waiting for it");
         }
     }
 }
