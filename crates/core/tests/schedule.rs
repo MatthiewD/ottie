@@ -606,6 +606,30 @@ async fn a_category_slot_holds_only_its_category() {
 }
 
 #[tokio::test]
+async fn a_category_slot_that_stops_at_once_wins_over_a_queue_that_lets_finish() {
+    let mut s = setup(3, 30).await;
+    let videos = s
+        .manager
+        .add_category(CategorySettings::named("Videos"))
+        .await
+        .unwrap();
+    let video = s.add(s.new_job("film.mkv").in_category(videos)).await;
+    s.wait_for(video, JobState::Downloading).await;
+    let gentle = always(Downloads::Stop {
+        let_finish: true,
+        stay_paused: false,
+    });
+    s.manager.add_slot(gentle).await.unwrap();
+    let at_once = SlotSettings {
+        category: Some(videos),
+        ..always(STOP)
+    };
+    let quiet = s.manager.add_slot(at_once).await.unwrap();
+    let held = s.wait_for(video, JobState::Scheduled).await;
+    assert_eq!(held.held_by, Some(quiet));
+}
+
+#[tokio::test]
 async fn the_higher_slot_wins() {
     let mut s = setup(3, 0).await;
     let stop = s.manager.add_slot(always(STOP)).await.unwrap();

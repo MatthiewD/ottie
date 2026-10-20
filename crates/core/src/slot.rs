@@ -251,15 +251,25 @@ impl Effects {
     }
 
     /// The slot stopping downloads of `category`, if one does, and whether
-    /// it lets running ones finish. A stopped queue stops every category.
+    /// it lets running ones finish. A stopped queue stops every category;
+    /// when the queue and the category both stop, running downloads finish
+    /// only if both let them: the one that stops them at once wins, else the
+    /// queue's.
     pub(crate) fn stop(&self, category: CategoryId) -> Option<(SlotId, bool)> {
         let of_category = self.categories.get(&category).and_then(|e| e.downloads);
         [self.queue.downloads, of_category]
             .into_iter()
             .flatten()
-            .find_map(|(id, downloads)| match downloads {
+            .filter_map(|(id, downloads)| match downloads {
                 Downloads::Stop { let_finish, .. } => Some((id, let_finish)),
                 Downloads::Allow => None,
+            })
+            .reduce(|queue, category| {
+                if queue.1 && !category.1 {
+                    category
+                } else {
+                    queue
+                }
             })
     }
 
@@ -466,5 +476,30 @@ mod tests {
         let effects = Effects::of([(night, &stop), (work, &limit)]);
         assert_eq!(effects.stop(CategoryId(4)), Some((night, true)));
         assert_eq!(effects.queue.speed_limit, Some(1000), "set by work alone");
+    }
+
+    #[test]
+    fn stopping_at_once_wins_over_letting_finish() {
+        let (night, videos) = (SlotId(1), SlotId(2));
+        let stop = |let_finish, category| SlotSettings {
+            category,
+            downloads: Some(Downloads::Stop {
+                let_finish,
+                stay_paused: false,
+            }),
+            ..SlotSettings::daily(time(1, 0, 0, 0), time(2, 0, 0, 0))
+        };
+        let (gentle_queue, strict_queue) = (stop(true, None), stop(false, None));
+        let gentle_videos = stop(true, Some(CategoryId(4)));
+        let strict_videos = stop(false, Some(CategoryId(4)));
+
+        let effects = Effects::of([(night, &gentle_queue), (videos, &strict_videos)]);
+        assert_eq!(effects.stop(CategoryId(4)), Some((videos, false)));
+        assert_eq!(effects.stop(CategoryId::GENERAL), Some((night, true)));
+        let effects = Effects::of([(night, &strict_queue), (videos, &gentle_videos)]);
+        assert_eq!(effects.stop(CategoryId(4)), Some((night, false)));
+        // Both let them finish: the queue's, as before.
+        let effects = Effects::of([(night, &gentle_queue), (videos, &gentle_videos)]);
+        assert_eq!(effects.stop(CategoryId(4)), Some((night, true)));
     }
 }

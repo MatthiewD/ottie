@@ -8,6 +8,7 @@ What changes in Ottie from one version to the next: new features, changes and fi
 
 - Speed limits above 1 TiB/s and start or stop times after the year 9999 are refused. Before, such a limit was accepted but couldn't be saved, so it was lost at the next start along with the settings changed after it, and such a time made the request fail on Windows.
 - A link with a sequence spanning every possible number, like `[0-18446744073709551615]`, is refused as too many links instead of giving no download at all.
+- When a time slot for all downloads lets running ones finish and another, for one category, stops them at once, that category's running downloads now stop.
 
 ### Security
 
