@@ -235,7 +235,9 @@ impl Access {
         })
     }
 
-    /// Reads the token file again if it changed.
+    /// Reads the token file again if it changed. A read that fails or finds it
+    /// empty (being written) is tried again on the next request: only a token
+    /// read marks this version of the file as seen.
     fn reload_owner(&self) {
         let Some(path) = &self.0.token_file else {
             return;
@@ -245,12 +247,15 @@ impl Access {
         if now.is_none() || now == owner.modified {
             return;
         }
-        owner.modified = now;
         let Ok(text) = std::fs::read_to_string(path) else {
             return;
         };
         let token = text.trim();
-        if token.is_empty() || owner.token.matches(token) {
+        if token.is_empty() {
+            return;
+        }
+        owner.modified = now;
+        if owner.token.matches(token) {
             return;
         }
         tracing::info!("the token file changed: this computer's old token no longer works");
@@ -725,5 +730,37 @@ mod tests {
         assert!(access.identify(&["second"]).is_some());
         assert!(access.identify(&["first"]).is_none());
         assert!(old.revoked.is_cancelled());
+    }
+
+    #[test]
+    fn a_token_file_read_half_written_is_read_again() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("token");
+        std::fs::write(
+            &path, "first
+",
+        )
+        .unwrap();
+        let mut config = AccessConfig::new(Token::new("first"));
+        config.token_file = Some(path.clone());
+        let access = Access::open(config).unwrap();
+        let set_time = |at| {
+            let file = std::fs::File::options().write(true).open(&path).unwrap();
+            file.set_modified(at).unwrap();
+        };
+        // Caught empty, as while it's being written: the old token stays.
+        let later = SystemTime::now() + std::time::Duration::from_secs(5);
+        std::fs::write(&path, "").unwrap();
+        set_time(later);
+        assert!(access.identify(&["first"]).is_some());
+        // Then written, within the same modification time.
+        std::fs::write(
+            &path, "second
+",
+        )
+        .unwrap();
+        set_time(later);
+        assert!(access.identify(&["second"]).is_some());
+        assert!(access.identify(&["first"]).is_none());
     }
 }

@@ -14,6 +14,7 @@ What changes in Ottie from one version to the next: new features, changes and fi
 ### Security
 
 - Secure connections (HTTPS, FTPS) use an updated version of rustls, the library behind them, which fixes four security advisories. None of them could be reached through the way Ottie uses it.
+- A new token for this computer (`ottie token --new`) always takes effect at once. If Ottie read the token file while it was being written, it kept taking the old token until it restarted.
 
 ## [0.1.0-experimental] - 2026-10-17
 
