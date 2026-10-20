@@ -466,6 +466,12 @@ const MIGRATIONS: &[&str] = &[
     "ALTER TABLE jobs ADD COLUMN cookie TEXT;
      ALTER TABLE jobs ADD COLUMN referrer TEXT;
      ALTER TABLE jobs ADD COLUMN user_agent TEXT;",
+    // 22: where a job's file is being moved, saved before it moves, so a
+    // move a crash interrupted is finished or undone at the next start
+    // (docs/decisions/0059). All three or none.
+    "ALTER TABLE jobs ADD COLUMN moving_category INTEGER;
+     ALTER TABLE jobs ADD COLUMN moving_dir TEXT;
+     ALTER TABLE jobs ADD COLUMN moving_name TEXT;",
 ];
 
 /// Everything saved about one job.
@@ -496,6 +502,17 @@ pub(crate) struct JobRecord {
     pub held_by: Option<SlotId>,
     /// What to do when its file's name is taken; `None`: the setting's.
     pub existing: Option<Existing>,
+    /// While its file moves to another category's folder: where to.
+    pub moving_to: Option<MovingTo>,
+}
+
+/// Where a job's file is going (docs/decisions/0028, 0059): the category,
+/// its folder, and the name reserved there (as a `.part.ottie`).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) struct MovingTo {
+    pub category: CategoryId,
+    pub dir: PathBuf,
+    pub name: String,
 }
 
 /// A time slot with its place in the list (lower comes first, and wins).
@@ -820,6 +837,14 @@ fn write_job(tx: &Connection, record: &JobRecord) -> Result<(), Error> {
         .dest_dir
         .to_str()
         .ok_or_else(|| Error::NonUtf8Path(dl.dest_dir.clone()))?;
+    let moving_dir = match &record.moving_to {
+        Some(to) => Some(
+            to.dir
+                .to_str()
+                .ok_or_else(|| Error::NonUtf8Path(to.dir.clone()))?,
+        ),
+        None => None,
+    };
     let (validator_kind, validator_value) = match &dl.validator {
         Some(Validator::ETag(v)) => (Some("etag"), Some(v.as_str())),
         Some(Validator::LastModified(v)) => (Some("last-modified"), Some(v.as_str())),
@@ -840,9 +865,11 @@ fn write_job(tx: &Connection, record: &JobRecord) -> Result<(), Error> {
                            priority, speed_limit, category_id, category_chosen,
                            problem_kind, problem_number, problem_total, problem_detail,
                            streaming, streaming_chosen, queue_place, start_at, stop_at,
-                           ignores_slots, held_by, existing, cookie, referrer, user_agent)
+                           ignores_slots, held_by, existing, cookie, referrer, user_agent,
+                           moving_category, moving_dir, moving_name)
          VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16,
-                 ?17, ?18, ?19, ?20, ?21, ?22, ?23, ?24, ?25, ?26, ?27, ?28, ?29, ?30, ?31)
+                 ?17, ?18, ?19, ?20, ?21, ?22, ?23, ?24, ?25, ?26, ?27, ?28, ?29, ?30, ?31,
+                 ?32, ?33, ?34)
          ON CONFLICT (id_secs, id_seq) DO UPDATE SET
              url = excluded.url, dest_dir = excluded.dest_dir,
              file_name = excluded.file_name, state = excluded.state,
@@ -859,7 +886,8 @@ fn write_job(tx: &Connection, record: &JobRecord) -> Result<(), Error> {
              stop_at = excluded.stop_at, ignores_slots = excluded.ignores_slots,
              held_by = excluded.held_by, existing = excluded.existing,
              cookie = excluded.cookie, referrer = excluded.referrer,
-             user_agent = excluded.user_agent",
+             user_agent = excluded.user_agent, moving_category = excluded.moving_category,
+             moving_dir = excluded.moving_dir, moving_name = excluded.moving_name",
     )?
     .execute(params![
         secs,
@@ -893,6 +921,9 @@ fn write_job(tx: &Connection, record: &JobRecord) -> Result<(), Error> {
         dl.headers.cookie,
         dl.headers.referrer,
         dl.headers.user_agent,
+        record.moving_to.as_ref().map(|to| to.category.0),
+        moving_dir,
+        record.moving_to.as_ref().map(|to| to.name.as_str()),
     ])?;
     tx.prepare_cached("DELETE FROM segments WHERE job_secs = ?1 AND job_seq = ?2")?
         .execute(params![secs, seq])?;
@@ -965,7 +996,8 @@ fn load_jobs(conn: &Connection) -> Result<Vec<JobRecord>, Error> {
                 category_id, category_chosen,
                 problem_kind, problem_number, problem_total, problem_detail,
                 streaming, streaming_chosen, queue_place, start_at, stop_at, ignores_slots,
-                held_by, existing, cookie, referrer, user_agent
+                held_by, existing, cookie, referrer, user_agent,
+                moving_category, moving_dir, moving_name
          FROM jobs ORDER BY id_secs, id_seq",
     )?;
     let mut rows = stmt.query([])?;
@@ -1063,6 +1095,18 @@ fn record_from_row(row: &Row) -> rusqlite::Result<Result<JobRecord, String>> {
             .get::<_, Option<String>>(27)?
             .as_deref()
             .and_then(Existing::parse),
+        moving_to: match (
+            row.get::<_, Option<u32>>(31)?,
+            row.get::<_, Option<String>>(32)?,
+            row.get::<_, Option<String>>(33)?,
+        ) {
+            (Some(category), Some(dir), Some(name)) => Some(MovingTo {
+                category: CategoryId(category),
+                dir: PathBuf::from(dir),
+                name,
+            }),
+            _ => None,
+        },
     }))
 }
 
@@ -1671,6 +1715,11 @@ mod tests {
             ignores_slots: true,
             held_by: Some(SlotId(3)),
             existing: Some(Existing::Replace),
+            moving_to: Some(MovingTo {
+                category: CategoryId(4),
+                dir: PathBuf::from("/videos"),
+                name: "file (1).zip".to_owned(),
+            }),
         }
     }
 

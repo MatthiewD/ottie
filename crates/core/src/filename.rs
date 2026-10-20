@@ -252,37 +252,109 @@ async fn rename_new(from: &Path, to: &Path) -> io::Result<()> {
 
 /// Moves a download's file from folder `from` to folder `to`, under the first
 /// free name there: the finished file (`finished`) or its `.part.ottie`.
-/// Returns its name now. If anything fails, the original stays where it was.
-/// A file that's gone (deleted by hand) has nothing to move: the name stays.
-pub async fn relocate(from: &Path, name: &str, finished: bool, to: &Path) -> io::Result<String> {
-    let source = if finished {
+/// Returns its name now. A file that's gone (deleted by hand) has nothing to
+/// move: the name stays. [`reserve_in`], then [`move_to`]; the manager saves
+/// where it's going in between (docs/decisions/0059), so it uses those.
+#[cfg(test)]
+async fn relocate(from: &Path, name: &str, finished: bool, to: &Path) -> io::Result<String> {
+    if !fs::try_exists(source_of(from, name, finished)).await? {
+        return Ok(name.to_owned());
+    }
+    let candidate = reserve_in(to, name).await?;
+    move_to(from, name, finished, to, &candidate)
+        .await
+        .map_err(MoveFailure::into_error)
+}
+
+/// Where a download's file is now: the finished file, or its `.part.ottie`.
+pub(crate) fn source_of(from: &Path, name: &str, finished: bool) -> std::path::PathBuf {
+    if finished {
         from.join(name)
     } else {
         from.join(part_name(name))
-    };
-    if !fs::try_exists(&source).await? {
-        return Ok(name.to_owned());
     }
-    // The new name is reserved as a `.part.ottie`, which the file then
-    // replaces; a finished file gets its real name back at the end.
+}
+
+/// Reserves the first free name in `to` for a file moving there, as a
+/// `.part.ottie` the file then replaces. That name.
+pub(crate) async fn reserve_in(to: &Path, name: &str) -> io::Result<String> {
     let (candidate, file) = reserve(to, name, false).await?;
     drop(file); // Windows won't replace a file that's still open.
-    let part = to.join(part_name(&candidate));
-    if let Err(err) = move_file(&source, &part).await {
-        let _ = fs::remove_file(&part).await;
-        return Err(err);
-    }
-    if !finished {
-        return Ok(candidate);
-    }
-    match finalize(to, &candidate, &part, false).await {
-        Ok(name) => Ok(name),
-        Err(err) => {
-            // Put it back rather than leave it half-moved.
-            let _ = move_file(&part, &source).await;
-            Err(err)
+    Ok(candidate)
+}
+
+/// How a move failed.
+#[derive(Debug)]
+pub(crate) enum MoveFailure {
+    /// The file is where it was; the reservation is gone.
+    Undone(io::Error),
+    /// The file couldn't be put back: it's at the destination, under its
+    /// reserved name as a `.part.ottie`.
+    Stranded(io::Error),
+}
+
+impl MoveFailure {
+    pub(crate) fn into_error(self) -> io::Error {
+        match self {
+            MoveFailure::Undone(err) | MoveFailure::Stranded(err) => err,
         }
     }
+}
+
+/// Moves the file from `from` to `to`, under `candidate` (from
+/// [`reserve_in`]): its name there. If anything fails, the original is put
+/// back where it was, unless even that fails.
+pub(crate) async fn move_to(
+    from: &Path,
+    name: &str,
+    finished: bool,
+    to: &Path,
+    candidate: &str,
+) -> Result<String, MoveFailure> {
+    let source = source_of(from, name, finished);
+    let part = to.join(part_name(candidate));
+    if let Err(err) = move_file(&source, &part).await {
+        // A copy between drives leaves the original until it's complete.
+        let _ = fs::remove_file(&part).await;
+        return Err(MoveFailure::Undone(err));
+    }
+    if !finished {
+        return Ok(candidate.to_owned());
+    }
+    match finalize(to, candidate, &part, false).await {
+        Ok(name) => Ok(name),
+        // Put it back rather than leave it half-moved.
+        Err(err) => match move_file(&part, &source).await {
+            Ok(()) => Err(MoveFailure::Undone(err)),
+            Err(back) => {
+                tracing::error!(error = %back, "a moved file couldn't be put back");
+                Err(MoveFailure::Stranded(err))
+            }
+        },
+    }
+}
+
+/// A move a crash interrupted, settled at the next start: `None` if the file
+/// is still where it was (the reservation, or a copy begun, goes), else its
+/// name in `to` (a finished file under its `.part.ottie` name gets its own).
+pub(crate) async fn settle_move(
+    from: &Path,
+    name: &str,
+    finished: bool,
+    to: &Path,
+    candidate: &str,
+) -> io::Result<Option<String>> {
+    let part = to.join(part_name(candidate));
+    if fs::try_exists(source_of(from, name, finished)).await? {
+        match fs::remove_file(&part).await {
+            Err(err) if err.kind() != io::ErrorKind::NotFound => return Err(err),
+            _ => return Ok(None),
+        }
+    }
+    if finished && fs::try_exists(&part).await? {
+        return finalize(to, candidate, &part, false).await.map(Some);
+    }
+    Ok(Some(candidate.to_owned()))
 }
 
 /// Renames `source` to `target`, replacing it. Between drives a rename
@@ -526,6 +598,66 @@ mod tests {
         assert_eq!(name, "song.mp3");
         assert_eq!(std::fs::read(dir.path().join("song.mp3")).unwrap(), b"new");
         assert!(!part.exists());
+    }
+
+    /// Two folders, `from` holding `song.mp3` (or its `.part.ottie`).
+    fn two_folders(finished: bool) -> (tempfile::TempDir, std::path::PathBuf, std::path::PathBuf) {
+        let dir = tempfile::tempdir().unwrap();
+        let (from, to) = (dir.path().join("from"), dir.path().join("to"));
+        std::fs::create_dir_all(&from).unwrap();
+        std::fs::create_dir_all(&to).unwrap();
+        std::fs::write(source_of(&from, "song.mp3", finished), b"song").unwrap();
+        (dir, from, to)
+    }
+
+    #[tokio::test]
+    async fn a_move_that_hadnt_happened_is_undone() {
+        let (_dir, from, to) = two_folders(true);
+        // Reserved, and a copy begun, when it stopped.
+        std::fs::write(to.join("song.mp3.part.ottie"), b"so").unwrap();
+        let settled = settle_move(&from, "song.mp3", true, &to, "song.mp3")
+            .await
+            .unwrap();
+        assert_eq!(settled, None);
+        assert_eq!(std::fs::read(from.join("song.mp3")).unwrap(), b"song");
+        assert!(!to.join("song.mp3.part.ottie").exists());
+    }
+
+    #[tokio::test]
+    async fn a_move_that_happened_is_finished() {
+        // A finished file still under its reserved `.part.ottie` name.
+        let (_dir, from, to) = two_folders(true);
+        std::fs::rename(from.join("song.mp3"), to.join("song.mp3.part.ottie")).unwrap();
+        let settled = settle_move(&from, "song.mp3", true, &to, "song.mp3")
+            .await
+            .unwrap();
+        assert_eq!(settled.as_deref(), Some("song.mp3"));
+        assert_eq!(std::fs::read(to.join("song.mp3")).unwrap(), b"song");
+        assert!(!to.join("song.mp3.part.ottie").exists());
+
+        // Already under its name.
+        let (_dir, from, to) = two_folders(true);
+        std::fs::rename(from.join("song.mp3"), to.join("song (1).mp3")).unwrap();
+        let settled = settle_move(&from, "song.mp3", true, &to, "song (1).mp3")
+            .await
+            .unwrap();
+        assert_eq!(settled.as_deref(), Some("song (1).mp3"));
+
+        // Unfinished: its `.part.ottie` is the file.
+        let (_dir, from, to) = two_folders(false);
+        std::fs::rename(
+            from.join("song.mp3.part.ottie"),
+            to.join("song.mp3.part.ottie"),
+        )
+        .unwrap();
+        let settled = settle_move(&from, "song.mp3", false, &to, "song.mp3")
+            .await
+            .unwrap();
+        assert_eq!(settled.as_deref(), Some("song.mp3"));
+        assert_eq!(
+            std::fs::read(to.join("song.mp3.part.ottie")).unwrap(),
+            b"song"
+        );
     }
 
     #[tokio::test]

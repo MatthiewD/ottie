@@ -19,7 +19,7 @@ use crate::category::{self, BuiltIn, Category, CategoryId, CategorySettings, Mat
 use crate::certificate::{self, CertificateId, TrustedCertificate};
 use crate::download::{Download, Event, Outcome, Persist, Placement};
 use crate::error::Error;
-use crate::filename::{self, Existing};
+use crate::filename::{self, Existing, MoveFailure};
 use crate::id::{IdGenerator, JobId};
 use crate::job::{JobChange, JobEvent, JobSnapshot, JobState, NewJob, Priority, Reorder};
 use crate::links::{self, Found, LinkPreview};
@@ -28,7 +28,7 @@ use crate::problem::Problem;
 use crate::settings::{RetryPolicy, Settings, SettingsChange};
 use crate::slot::{Effects, Slot, SlotId, SlotSettings};
 use crate::speed::SpeedHistory;
-use crate::store::{JobRecord, SlotRecord, Store, Write};
+use crate::store::{JobRecord, MovingTo, SlotRecord, Store, Write};
 use crate::throttle::Limiter;
 use crate::view::{View, ViewId, ViewSettings};
 
@@ -146,6 +146,15 @@ impl Manager {
         };
         for id in finished {
             actor.save(id);
+        }
+        let moving: Vec<JobId> = actor
+            .jobs
+            .iter()
+            .filter(|(_, job)| job.moving_to.is_some())
+            .map(|(id, _)| *id)
+            .collect();
+        for id in moving {
+            actor.settle_move(id).await;
         }
         tokio::spawn(actor.run(command_rx, internal_rx));
         Ok(Manager {
@@ -698,7 +707,13 @@ enum Internal {
     /// A job's file has moved (or couldn't): its new folder and name.
     Moved {
         id: JobId,
-        result: io::Result<(PathBuf, String)>,
+        result: Result<(PathBuf, String), MoveFailure>,
+    },
+    /// A job's file is about to move there: save that, then answer.
+    MovingTo {
+        id: JobId,
+        to: MovingTo,
+        reply: oneshot::Sender<Result<(), Error>>,
     },
     /// A `Retrying` job's wait is over. `due` tells this wait from a later one.
     RetryDue {
@@ -796,6 +811,9 @@ struct Job {
     task: Option<Task>,
     /// Present while its category is changing and its file moving there.
     moving: Option<Moving>,
+    /// Where its file is going, saved before it goes (docs/decisions/0059):
+    /// a move a crash interrupted is settled at the next start.
+    moving_to: Option<MovingTo>,
     last_saved: Option<Instant>,
 }
 
@@ -890,6 +908,7 @@ impl Job {
             existing: record.existing,
             task: None,
             moving: None,
+            moving_to: record.moving_to,
             last_saved: None,
         }
     }
@@ -1187,6 +1206,9 @@ impl<B: Backend> Actor<B> {
             Internal::Moved { id, result } => {
                 self.finish_move(id, result.map(|(dir, name)| Some((dir, Some(name)))))
             }
+            Internal::MovingTo { id, to, reply } => {
+                let _ = reply.send(self.moving_to(id, to).await);
+            }
             Internal::RetryDue { id, due } => {
                 let waiting = self.jobs.get(&id).is_some_and(|job| {
                     job.state == JobState::Retrying
@@ -1471,6 +1493,7 @@ impl<B: Backend> Actor<B> {
                 existing: new.existing,
                 task: None,
                 moving: None,
+                moving_to: None,
                 last_saved: None,
             },
         );
@@ -1970,15 +1993,46 @@ impl<B: Backend> Actor<B> {
         };
         let from = job.download.dest_dir.clone();
         let finished = job.state == JobState::Completed;
+        let category = moving.category;
         let internal = self.internal.clone();
+        let saving = self.internal.clone();
         supervised(
             async move {
-                filename::relocate(&from, &name, finished, &to)
+                let undone = MoveFailure::Undone;
+                // Gone (deleted by hand): nothing to move, the name stays.
+                let source = filename::source_of(&from, &name, finished);
+                if !tokio::fs::try_exists(&source).await.map_err(undone)? {
+                    return Ok((to, name));
+                }
+                let candidate = filename::reserve_in(&to, &name).await.map_err(undone)?;
+                // Saved before it goes: a crash midway is settled at the
+                // next start (docs/decisions/0059).
+                let going = MovingTo {
+                    category,
+                    dir: to.clone(),
+                    name: candidate.clone(),
+                };
+                let (reply, saved) = oneshot::channel();
+                let asked = saving.send(Internal::MovingTo {
+                    id,
+                    to: going,
+                    reply,
+                });
+                let saved = match asked {
+                    Ok(()) => saved.await.unwrap_or(Err(Error::ManagerStopped)),
+                    Err(_) => Err(Error::ManagerStopped),
+                };
+                if let Err(err) = saved {
+                    let _ = tokio::fs::remove_file(to.join(filename::part_name(&candidate))).await;
+                    return Err(undone(io::Error::other(err.to_string())));
+                }
+                filename::move_to(&from, &name, finished, &to, &candidate)
                     .await
                     .map(|name| (to, name))
             },
             move |moved| {
-                let result = moved.unwrap_or_else(|panic| Err(io::Error::other(panic)));
+                let result =
+                    moved.unwrap_or_else(|panic| Err(MoveFailure::Undone(io::Error::other(panic))));
                 // Fails only if the manager has stopped.
                 let _ = internal.send(Internal::Moved { id, result });
             },
@@ -1987,10 +2041,18 @@ impl<B: Backend> Actor<B> {
 
     /// Ends a move: the job takes its new category and place, or stays as it
     /// was if the file couldn't move. A job that was running carries on.
-    fn finish_move(&mut self, id: JobId, result: io::Result<Option<Place>>) {
-        let Some(moving) = self.jobs.get_mut(&id).and_then(|job| job.moving.take()) else {
+    fn finish_move(&mut self, id: JobId, result: Result<Option<Place>, MoveFailure>) {
+        let Some(job) = self.jobs.get_mut(&id) else {
             return;
         };
+        let Some(moving) = job.moving.take() else {
+            return;
+        };
+        // Settled, unless the file couldn't be put back: then where it went
+        // stays saved, for the next start to settle (DUR-R3).
+        if !matches!(result, Err(MoveFailure::Stranded(_))) {
+            job.moving_to = None;
+        }
         let answer = match result {
             Ok(place) => {
                 // Removed meanwhile: the file stays where it went, and the job
@@ -2002,8 +2064,10 @@ impl<B: Backend> Actor<B> {
                 };
                 self.assign_category(id, category, place)
             }
-            Err(err) => {
+            Err(failure) => {
+                let err = failure.into_error();
                 tracing::warn!(%id, error = %err, "could not move the file");
+                self.save(id);
                 self.emit_changed(id);
                 Err(Error::MoveFailed(err))
             }
@@ -2021,6 +2085,56 @@ impl<B: Backend> Actor<B> {
         // Its times were left alone while it moved.
         self.check_times();
         self.schedule();
+    }
+
+    /// Where a job's file is about to go, saved and awaited.
+    async fn moving_to(&mut self, id: JobId, to: MovingTo) -> Result<(), Error> {
+        let Some(job) = self.jobs.get_mut(&id) else {
+            return Err(Error::JobNotFound(id));
+        };
+        job.moving_to = Some(to);
+        let saved = match self.record(id) {
+            Some(record) => self.store.write(Write::Save(Box::new(record))).await,
+            None => Ok(()),
+        };
+        if saved.is_err()
+            && let Some(job) = self.jobs.get_mut(&id)
+        {
+            job.moving_to = None;
+        }
+        saved
+    }
+
+    /// A move a crash interrupted (docs/decisions/0059): if the file is still
+    /// where it was, the job stays; else it takes its new category and place.
+    async fn settle_move(&mut self, id: JobId) {
+        let Some(job) = self.jobs.get_mut(&id) else {
+            return;
+        };
+        let (Some(to), Some(name)) = (job.moving_to.take(), job.download.file_name.clone()) else {
+            return;
+        };
+        let finished = job.state == JobState::Completed;
+        let from = job.download.dest_dir.clone();
+        match filename::settle_move(&from, &name, finished, &to.dir, &to.name).await {
+            Ok(None) => self.save(id),
+            Ok(Some(name)) => {
+                // Removed meanwhile: General, like its other jobs.
+                let category = if self.categories.contains_key(&to.category) {
+                    to.category
+                } else {
+                    CategoryId::GENERAL
+                };
+                let _ = self.assign_category(id, category, Some((to.dir, Some(name))));
+            }
+            Err(err) => {
+                tracing::error!(%id, error = %err, "could not settle a move a crash interrupted");
+                // Tried again at the next start.
+                if let Some(job) = self.jobs.get_mut(&id) {
+                    job.moving_to = Some(to);
+                }
+            }
+        }
     }
 
     /// Puts the job in `category` as the user's choice, and at `place` if
@@ -3057,6 +3171,7 @@ impl<B: Backend> Actor<B> {
             ignores_slots: job.ignores_slots,
             held_by: job.held_by,
             existing: job.existing,
+            moving_to: job.moving_to.clone(),
         })
     }
 

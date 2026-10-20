@@ -603,3 +603,47 @@ async fn a_download_finished_just_before_a_crash_is_found_finished() {
         .unwrap();
     assert_eq!(state, "completed", "saved as finished");
 }
+
+#[tokio::test]
+async fn a_move_a_crash_cut_short_is_settled_at_the_next_start() {
+    let s = setup().await;
+    let films_dir = s.downloads.join("films");
+    let manager = s.launch().await;
+    let films = CategorySettings {
+        folder: Some(films_dir.clone()),
+        ..CategorySettings::named("Films")
+    };
+    let films = manager.add_category(films).await.unwrap();
+    let id = s.add(&manager).await;
+    wait_until(&manager, id, JobState::Completed).await;
+    manager.shutdown().await.unwrap();
+
+    // As if Ottie had stopped while moving it to Films: where it was going
+    // is saved, and the file has gone there, under its reserved name.
+    std::fs::create_dir_all(&films_dir).unwrap();
+    std::fs::rename(
+        s.downloads.join("data.bin"),
+        films_dir.join(format!("data.bin{PART_SUFFIX}")),
+    )
+    .unwrap();
+    let db = rusqlite::Connection::open(&s.db).unwrap();
+    db.execute(
+        "UPDATE jobs SET moving_category = ?1, moving_dir = ?2, moving_name = 'data.bin'",
+        rusqlite::params![films.0, films_dir.to_str().unwrap()],
+    )
+    .unwrap();
+    drop(db);
+
+    let manager = s.launch().await;
+    let job = manager.list().await.unwrap().remove(0);
+    assert_eq!(job.category, films);
+    assert_eq!(job.dest_dir, films_dir);
+    assert_eq!(job.file_name.as_deref(), Some("data.bin"));
+    assert!(std::fs::read(films_dir.join("data.bin")).unwrap() == s.data);
+    manager.shutdown().await.unwrap();
+    let db = rusqlite::Connection::open(&s.db).unwrap();
+    let left: Option<String> = db
+        .query_row("SELECT moving_dir FROM jobs", [], |row| row.get(0))
+        .unwrap();
+    assert_eq!(left, None, "settled");
+}
