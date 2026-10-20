@@ -29,6 +29,11 @@ describe('speed limits', () => {
 		expect(fieldToLimit('1.25', 'GB')).toBe(1.25 * GB);
 	});
 
+	it('stop at the most the daemon takes', () => {
+		expect(fieldToLimit('1024', 'GB')).toBe(1024 * GB);
+		expect(fieldToLimit('5000', 'GB')).toBe(1024 * GB);
+	});
+
 	it('refuse nothing, zero and nonsense', () => {
 		for (const text of ['', '0', '-3', 'fast', '1e999']) {
 			expect(fieldToLimit(text, 'MB'), text).toBeNull();

@@ -61,7 +61,7 @@ pub(crate) async fn get(
     request_body = AddJob,
     responses(
         (status = CREATED, description = "Queued", body = Added),
-        (status = BAD_REQUEST, description = "`invalidUrl`, `unsupportedScheme`, `relativeFolder`, `nonUtf8Path`, `noFolder` or `stopBeforeStart`", body = ApiError),
+        (status = BAD_REQUEST, description = "`invalidUrl`, `unsupportedScheme`, `relativeFolder`, `nonUtf8Path`, `noFolder`, `stopBeforeStart` or `outOfRange` (`startAt`, `stopAt`: past the end of year 9999)", body = ApiError),
         (status = FORBIDDEN, description = "`readOnly`, or `folderNotAllowed`: a device's `destDir` outside the folders it may use", body = ApiError),
         (status = NOT_FOUND, description = "`categoryNotFound`", body = ApiError),
         (status = UNPROCESSABLE_ENTITY, description = "`invalidBody`", body = ApiError),
@@ -90,10 +90,10 @@ fn new_job(body: AddJob, folders: &Folders) -> Result<NewJob, Failure> {
         job = job.streaming(on);
     }
     if let Some(at) = body.start_at {
-        job = job.starting_at(from_millis(at));
+        job = job.starting_at(from_millis("startAt", at)?);
     }
     if let Some(at) = body.stop_at {
-        job = job.stopping_at(from_millis(at));
+        job = job.stopping_at(from_millis("stopAt", at)?);
     }
     if let Some(existing) = body.existing {
         job = job.existing(existing.into());
@@ -303,7 +303,7 @@ pub(crate) async fn remove(
     request_body = JobChange,
     responses(
         (status = NO_CONTENT, description = "Changed"),
-        (status = BAD_REQUEST, description = "`invalidJobId` or `stopBeforeStart`", body = ApiError),
+        (status = BAD_REQUEST, description = "`invalidJobId`, `stopBeforeStart` or `outOfRange` (`speedLimit`, `startAt`, `stopAt`)", body = ApiError),
         (status = NOT_FOUND, description = "`jobNotFound`", body = ApiError),
         (status = CONFLICT, description = "Times for a finished download (`invalidTransition`), or `jobMoving`", body = ApiError),
         (status = UNPROCESSABLE_ENTITY, description = "`invalidBody`", body = ApiError),
@@ -317,7 +317,7 @@ pub(crate) async fn change(
     let Json(change) = body?;
     state
         .manager
-        .change_job(id.parse::<JobId>()?, change.into())
+        .change_job(id.parse::<JobId>()?, change.checked()?)
         .await?;
     Ok(StatusCode::NO_CONTENT)
 }

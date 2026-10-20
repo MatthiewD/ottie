@@ -51,16 +51,27 @@ pub(crate) async fn change(
 /// How many downloads may run at once: the setting, and a time slot's.
 pub(crate) const MAX_CONCURRENT: RangeInclusive<u64> = 1..=50;
 
+/// Every speed limit (the total one, a category's, a time slot's, a
+/// download's), in bytes per second: 0 (none) up to 1 TiB/s, far past any
+/// link. The database couldn't hold more than `i64::MAX`.
+pub(crate) const SPEED_LIMIT: RangeInclusive<u64> = 0..=1 << 40;
+
+/// A download's start and stop time, in milliseconds since 1970: up to the
+/// end of year 9999 (UTC). Every system's clock goes that far (Windows' stops
+/// in 30828), and so do the database and JavaScript.
+pub(crate) const TIME: RangeInclusive<u64> = 0..=253_402_300_799_999;
+
 /// What people may choose for each setting, by its field name, with the
 /// value `change` gives it. The UI gets the same ranges from
 /// `shared/api-types/Ranges.ts`, which the tests write from this list.
-fn ranged(change: &SettingsChange) -> [(&'static str, Option<u64>, RangeInclusive<u64>); 5] {
+fn ranged(change: &SettingsChange) -> [(&'static str, Option<u64>, RangeInclusive<u64>); 6] {
     [
         (
             "maxConcurrent",
             change.max_concurrent.map(u64::from),
             MAX_CONCURRENT,
         ),
+        ("globalLimit", change.global_limit, SPEED_LIMIT),
         ("maxRetries", change.max_retries.map(u64::from), 0..=1000),
         (
             "retriesBeforeYield",
@@ -78,21 +89,9 @@ fn ranged(change: &SettingsChange) -> [(&'static str, Option<u64>, RangeInclusiv
 }
 
 fn check(change: &SettingsChange) -> Result<(), Failure> {
-    let ranged = ranged(change);
-    for (setting, value, range) in ranged {
-        if let Some(value) = value
-            && !range.contains(&value)
-        {
-            let (min, max) = (*range.start(), *range.end());
-            return Err(Failure::new(
-                StatusCode::BAD_REQUEST,
-                Reason::OutOfRange {
-                    setting: setting.into(),
-                    min,
-                    max,
-                },
-                format!("{setting} must be from {min} to {max}"),
-            ));
+    for (setting, value, range) in ranged(change) {
+        if let Some(value) = value {
+            in_range(setting, value, &range)?;
         }
     }
     if let Some(Some(language)) = &change.language
@@ -107,6 +106,34 @@ fn check(change: &SettingsChange) -> Result<(), Failure> {
         ));
     }
     Ok(())
+}
+
+/// Refuses a value outside its range with `outOfRange`; `setting` is its
+/// field name.
+pub(crate) fn in_range(
+    setting: &str,
+    value: u64,
+    range: &RangeInclusive<u64>,
+) -> Result<(), Failure> {
+    if range.contains(&value) {
+        Ok(())
+    } else {
+        Err(out_of_range(setting, range))
+    }
+}
+
+/// `outOfRange`, for a value of `setting` outside `range`.
+pub(crate) fn out_of_range(setting: &str, range: &RangeInclusive<u64>) -> Failure {
+    let (min, max) = (*range.start(), *range.end());
+    Failure::new(
+        StatusCode::BAD_REQUEST,
+        Reason::OutOfRange {
+            setting: setting.into(),
+            min,
+            max,
+        },
+        format!("{setting} must be from {min} to {max}"),
+    )
 }
 
 /// The shape of a language tag (`en`, `fr`, `pt-BR`, `zh-Hant`): letters,
@@ -128,7 +155,7 @@ fn is_language_tag(tag: &str) -> bool {
 mod tests {
     use std::path::PathBuf;
 
-    use super::{is_language_tag, ranged};
+    use super::{SPEED_LIMIT, is_language_tag, ranged};
     use crate::types::SettingsChange;
 
     /// Writes the ranges for TypeScript clients, beside the types ts-rs
@@ -140,13 +167,18 @@ mod tests {
             "",
             "/**",
             " * What people may choose for each setting; the daemon refuses the rest",
-            " * (`outOfRange`). Waits are in milliseconds.",
+            " * (`outOfRange`). Waits are in milliseconds, limits in bytes per second;",
+            " * `speedLimit` is a download's, a category's or a time slot's.",
             " */",
             "export const RANGES = {",
         ]
         .map(|line| format!("{line}\n"))
         .concat();
-        for (setting, _, range) in ranged(&SettingsChange::default()) {
+        let ranges = ranged(&SettingsChange::default())
+            .map(|(setting, _, range)| (setting, range))
+            .into_iter()
+            .chain([("speedLimit", SPEED_LIMIT)]);
+        for (setting, range) in ranges {
             let (min, max) = (range.start(), range.end());
             text.push_str(&format!("\t{setting}: {{ min: {min}, max: {max} }},\n"));
         }

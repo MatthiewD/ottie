@@ -58,6 +58,7 @@ A device may only have downloads written into **every category's folder and the 
 - JSON, with `camelCase` field names. Send `Content-Type: application/json` with a body.
 - **Job IDs** are strings like `2026.10.13-14.28.59-1`: the creation time in UTC plus a counter. Sorting them sorts by creation. Category and view IDs are numbers; General is category `1`.
 - Sizes and speeds are in **bytes** (speeds in bytes per second); `0` means "no limit". Times are milliseconds since 1970 (UTC).
+- Every speed limit goes up to 1 TiB/s (`1099511627776`) and every time up to the end of year 9999 (`253402300799999`); past that, `outOfRange` names the field. The settings' ranges, and `speedLimit` for the others, are in `shared/api-types/Ranges.ts`.
 - Folders are **absolute paths on the daemon's computer**.
 - Changes answer `204 No Content`; creations answer `201` with the new ID.
 - Fields marked optional in a body may be left out. In `PATCH` bodies, a field left out stays as it is.

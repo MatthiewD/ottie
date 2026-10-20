@@ -79,10 +79,14 @@ export function limitToField(
 	return { value: toField(value, locale), unit };
 }
 
-/** A limit typed in `unit`, in bytes per second; null unless above zero. */
+/** A limit typed in `unit`, in bytes per second, at most what the daemon
+ * takes (1 TiB/s); null unless above zero. */
 export function fieldToLimit(text: string, unit: SpeedUnit): number | null {
 	const number = parseNumber(text);
-	return number !== null && number > 0 ? Math.max(1, Math.round(number * UNIT_BYTES[unit])) : null;
+	if (number === null || number <= 0) {
+		return null;
+	}
+	return Math.min(RANGES.speedLimit.max, Math.max(1, Math.round(number * UNIT_BYTES[unit])));
 }
 
 /** A whole number typed, from `min` to `max`; null otherwise. */

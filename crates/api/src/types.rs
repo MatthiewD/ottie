@@ -19,6 +19,7 @@ use ts_rs::TS;
 use utoipa::ToSchema;
 
 use crate::error::Failure;
+use crate::settings::{SPEED_LIMIT, TIME, in_range, out_of_range};
 
 /// One download, as listed by `GET /jobs` and sent in `changed` events.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, TS, ToSchema)]
@@ -829,16 +830,25 @@ mod present {
     }
 }
 
-impl From<JobChange> for ottie_core::JobChange {
-    fn from(change: JobChange) -> Self {
-        ottie_core::JobChange {
-            speed_limit: change.speed_limit,
-            priority: change.priority.map(Into::into),
-            streaming: change.streaming,
-            start_at: change.start_at.map(|at| at.map(from_millis)),
-            stop_at: change.stop_at.map(|at| at.map(from_millis)),
-            existing: change.existing.map(Into::into),
+impl JobChange {
+    /// The engine's change; `outOfRange` for a limit or a time past what
+    /// Ottie takes.
+    pub(crate) fn checked(self) -> Result<ottie_core::JobChange, Failure> {
+        if let Some(limit) = self.speed_limit {
+            in_range("speedLimit", limit, &SPEED_LIMIT)?;
         }
+        let time = |field, at: Option<Option<u64>>| {
+            at.map(|at| at.map(|at| from_millis(field, at)).transpose())
+                .transpose()
+        };
+        Ok(ottie_core::JobChange {
+            speed_limit: self.speed_limit,
+            priority: self.priority.map(Into::into),
+            streaming: self.streaming,
+            start_at: time("startAt", self.start_at)?,
+            stop_at: time("stopAt", self.stop_at)?,
+            existing: self.existing.map(Into::into),
+        })
     }
 }
 
@@ -849,8 +859,14 @@ pub(crate) fn millis(at: SystemTime) -> u64 {
     })
 }
 
-pub(crate) fn from_millis(millis: u64) -> SystemTime {
-    UNIX_EPOCH + Duration::from_millis(millis)
+/// A time from the wire; `outOfRange` (naming its `field`) past the end of
+/// year 9999. A larger one could make the system's clock panic.
+pub(crate) fn from_millis(field: &str, millis: u64) -> Result<SystemTime, Failure> {
+    in_range(field, millis, &TIME)?;
+    // Every system holds the times within TIME; checked all the same.
+    UNIX_EPOCH
+        .checked_add(Duration::from_millis(millis))
+        .ok_or_else(|| out_of_range(field, &TIME))
 }
 
 /// Body of `POST /jobs/reorder`.
@@ -1326,8 +1342,8 @@ pub enum Reason {
     CannotRemoveBuiltIn {
         category: String,
     },
-    /// A setting must be from `min` to `max`; `setting` is its field name
-    /// (`maxConcurrent`…).
+    /// A value must be from `min` to `max`; `setting` is its field name
+    /// (`maxConcurrent`, `globalLimit`, `speedLimit`, `startAt`…).
     OutOfRange {
         setting: String,
         #[ts(type = "number")]

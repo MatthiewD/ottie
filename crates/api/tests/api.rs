@@ -966,6 +966,115 @@ async fn bad_requests_say_what_is_wrong() {
 }
 
 #[tokio::test]
+async fn numbers_ottie_cant_hold_are_refused() {
+    // Fits a u64, not the database's signed integers.
+    const TOO_BIG: u64 = 1 << 63;
+    const MOST_LIMIT: u64 = 1 << 40;
+    const END_OF_9999: u64 = 253_402_300_799_999;
+    let d = start().await;
+    let out_of_range = |setting: &str, max: u64| Reason::OutOfRange {
+        setting: setting.into(),
+        min: 0,
+        max,
+    };
+    let refused = async |request: RequestBuilder| {
+        let (status, body) = error_of(request.send().await.unwrap()).await;
+        assert_eq!(status, StatusCode::BAD_REQUEST, "{}", body.error);
+        body.reason
+    };
+
+    // Times past the end of year 9999: u64::MAX made Windows' clock panic.
+    let never = AddJob {
+        start_at: Some(u64::MAX),
+        ..d.new_job("file.bin")
+    };
+    let expected = out_of_range("startAt", END_OF_9999);
+    assert_eq!(refused(d.post("/jobs").json(&never)).await, expected);
+    let late = AddJob {
+        stop_at: Some(END_OF_9999 + 1),
+        ..d.new_job("file.bin")
+    };
+    let expected = out_of_range("stopAt", END_OF_9999);
+    assert_eq!(refused(d.post("/jobs").json(&late)).await, expected);
+    // In a batch, only that link is refused.
+    let jobs = vec![never, d.new_job("file.bin")];
+    let response = d.post("/jobs/batch").json(&AddJobs { jobs }).send().await;
+    let added: AddedJobs = response.unwrap().json().await.unwrap();
+    assert!(matches!(&added.ids[..], [None, Some(_)]), "{:?}", added.ids);
+    let refused_one: Vec<_> = added.refused.into_iter().map(|r| r.index).collect();
+    assert_eq!(refused_one, [0]);
+    // The last moment of 9999 is taken.
+    let last = AddJob {
+        start_at: Some(END_OF_9999),
+        ..d.new_job("file.bin")
+    };
+    let response = d.post("/jobs").json(&last).send().await.unwrap();
+    assert_eq!(response.status(), StatusCode::CREATED);
+    let id = response.json::<Added>().await.unwrap().id;
+    assert_eq!(d.job(&id).await.start_at, Some(END_OF_9999));
+
+    // A download's own limit and times; nothing changes.
+    let patch = |change: serde_json::Value| {
+        let request = d.client.patch(d.url(&format!("/jobs/{id}")));
+        request.bearer_auth(TOKEN).json(&change)
+    };
+    let expected = out_of_range("speedLimit", MOST_LIMIT);
+    let limit = serde_json::json!({ "speedLimit": TOO_BIG });
+    assert_eq!(refused(patch(limit)).await, expected);
+    let expected = out_of_range("stopAt", END_OF_9999);
+    let stop = serde_json::json!({ "stopAt": u64::MAX });
+    assert_eq!(refused(patch(stop)).await, expected);
+    let job = d.job(&id).await;
+    assert_eq!((job.speed_limit, job.stop_at), (0, None));
+
+    // The total limit, which the database couldn't save: refused with the
+    // rest of the change. 1 TiB/s is taken.
+    let settings = |change: serde_json::Value| {
+        let request = d.client.patch(d.url("/settings"));
+        request.bearer_auth(TOKEN).json(&change)
+    };
+    let before: Settings = d
+        .get("/settings")
+        .send()
+        .await
+        .unwrap()
+        .json()
+        .await
+        .unwrap();
+    let change = serde_json::json!({ "globalLimit": TOO_BIG, "maxRetries": 3 });
+    let expected = out_of_range("globalLimit", MOST_LIMIT);
+    assert_eq!(refused(settings(change)).await, expected);
+    let after: Settings = d
+        .get("/settings")
+        .send()
+        .await
+        .unwrap()
+        .json()
+        .await
+        .unwrap();
+    assert_eq!(after, before);
+    let most = serde_json::json!({ "globalLimit": MOST_LIMIT });
+    let response = settings(most).send().await.unwrap();
+    assert_eq!(response.status(), StatusCode::NO_CONTENT);
+
+    // A category's and a time slot's limit.
+    let category = CategoryBody {
+        name: "Huge".into(),
+        folder: None,
+        extensions: vec![],
+        speed_limit: TOO_BIG,
+        max_concurrent: 0,
+    };
+    let expected = out_of_range("speedLimit", MOST_LIMIT);
+    let request = d.post("/categories").json(&category);
+    assert_eq!(refused(request).await, expected);
+    let slot = serde_json::json!({
+        "days": ["monday"], "from": "01:00", "to": "02:00", "speedLimit": TOO_BIG
+    });
+    assert_eq!(refused(d.post("/slots").json(&slot)).await, expected);
+}
+
+#[tokio::test]
 async fn failures_carry_a_problem_code() {
     let d = start().await;
     let id = d.add("missing.bin").await;

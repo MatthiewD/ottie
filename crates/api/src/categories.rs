@@ -11,6 +11,7 @@ use ottie_core::{CategoryId, CategorySettings, Url};
 use crate::AppState;
 use crate::access::{Caller, Folders};
 use crate::error::Failure;
+use crate::settings::{SPEED_LIMIT, in_range};
 use crate::types::{AddedCategory, ApiError, Category, CategoryBody, MatchLink, Matched, Reason};
 
 /// Every category by ID; General (1) first.
@@ -35,7 +36,7 @@ pub(crate) async fn list(State(state): State<AppState>) -> Result<Json<Vec<Categ
     request_body = CategoryBody,
     responses(
         (status = CREATED, description = "Added", body = AddedCategory),
-        (status = BAD_REQUEST, description = "`invalidCategoryName`, `invalidExtension`, `relativeFolder` or `nonUtf8Path`", body = ApiError),
+        (status = BAD_REQUEST, description = "`invalidCategoryName`, `invalidExtension`, `relativeFolder`, `nonUtf8Path` or `outOfRange` (`speedLimit`)", body = ApiError),
         (status = FORBIDDEN, description = "`readOnly`, or `folderNotAllowed`: a device's folder outside the folders it may use", body = ApiError),
         (status = CONFLICT, description = "`categoryNameTaken` or `extensionTaken`", body = ApiError),
         (status = UNPROCESSABLE_ENTITY, description = "`invalidBody`", body = ApiError),
@@ -66,7 +67,7 @@ pub(crate) async fn add(
     request_body = CategoryBody,
     responses(
         (status = NO_CONTENT, description = "Replaced"),
-        (status = BAD_REQUEST, description = "`invalidCategoryName`, `invalidExtension`, `relativeFolder` or `nonUtf8Path`", body = ApiError),
+        (status = BAD_REQUEST, description = "`invalidCategoryName`, `invalidExtension`, `relativeFolder`, `nonUtf8Path` or `outOfRange` (`speedLimit`)", body = ApiError),
         (status = FORBIDDEN, description = "`readOnly`, or `folderNotAllowed`: a device's folder outside the folders it may use (another category's, or one listed)", body = ApiError),
         (status = NOT_FOUND, description = "`categoryNotFound`", body = ApiError),
         (status = CONFLICT, description = "`categoryNameTaken` or `extensionTaken`", body = ApiError),
@@ -162,6 +163,7 @@ pub(crate) fn absolute_folder(folder: String) -> Result<PathBuf, Failure> {
 }
 
 fn settings(body: CategoryBody, folders: &Folders) -> Result<CategorySettings, Failure> {
+    in_range("speedLimit", body.speed_limit, &SPEED_LIMIT)?;
     let folder = body.folder.map(absolute_folder).transpose()?;
     Ok(CategorySettings {
         name: body.name,

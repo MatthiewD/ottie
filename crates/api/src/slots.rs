@@ -9,7 +9,7 @@ use ottie_core::{SlotId, SlotSettings};
 
 use crate::AppState;
 use crate::error::Failure;
-use crate::settings::MAX_CONCURRENT;
+use crate::settings::{MAX_CONCURRENT, SPEED_LIMIT, in_range};
 use crate::types::{AddedSlot, ApiError, Reason, ReorderSlots, Slot, SlotBody, SlotList};
 
 /// Every time slot, in the order of the list, and the time zone they follow.
@@ -38,7 +38,7 @@ pub(crate) async fn list(State(state): State<AppState>) -> Result<Json<SlotList>
     request_body = SlotBody,
     responses(
         (status = CREATED, description = "Added", body = AddedSlot),
-        (status = BAD_REQUEST, description = "`slotWithoutDays`, `slotWithoutEffect`, `invalidTime` or `outOfRange` (`maxConcurrent`)", body = ApiError),
+        (status = BAD_REQUEST, description = "`slotWithoutDays`, `slotWithoutEffect`, `invalidTime` or `outOfRange` (`maxConcurrent`, `speedLimit`)", body = ApiError),
         (status = NOT_FOUND, description = "`categoryNotFound`", body = ApiError),
         (status = UNPROCESSABLE_ENTITY, description = "`invalidBody`", body = ApiError),
     )
@@ -62,7 +62,7 @@ pub(crate) async fn add(
     request_body = SlotBody,
     responses(
         (status = NO_CONTENT, description = "Replaced"),
-        (status = BAD_REQUEST, description = "`slotWithoutDays`, `slotWithoutEffect`, `invalidTime` or `outOfRange` (`maxConcurrent`)", body = ApiError),
+        (status = BAD_REQUEST, description = "`slotWithoutDays`, `slotWithoutEffect`, `invalidTime` or `outOfRange` (`maxConcurrent`, `speedLimit`)", body = ApiError),
         (status = NOT_FOUND, description = "`slotNotFound` or `categoryNotFound`", body = ApiError),
         (status = UNPROCESSABLE_ENTITY, description = "`invalidBody`", body = ApiError),
     )
@@ -127,19 +127,11 @@ pub(crate) async fn reorder(
 
 /// The engine's settings from a body, checking what the engine can't.
 fn settings(body: SlotBody) -> Result<SlotSettings, Failure> {
-    if let Some(max) = body.max_concurrent
-        && !MAX_CONCURRENT.contains(&u64::from(max))
-    {
-        let (min, max) = (*MAX_CONCURRENT.start(), *MAX_CONCURRENT.end());
-        return Err(Failure::new(
-            StatusCode::BAD_REQUEST,
-            Reason::OutOfRange {
-                setting: "maxConcurrent".into(),
-                min,
-                max,
-            },
-            format!("maxConcurrent must be from {min} to {max}"),
-        ));
+    if let Some(max) = body.max_concurrent {
+        in_range("maxConcurrent", u64::from(max), &MAX_CONCURRENT)?;
+    }
+    if let Some(limit) = body.speed_limit {
+        in_range("speedLimit", limit, &SPEED_LIMIT)?;
     }
     body.settings().map_err(|text| {
         Failure::new(

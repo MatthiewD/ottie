@@ -2,12 +2,15 @@
 
 /**
  * What people may choose for each setting; the daemon refuses the rest
- * (`outOfRange`). Waits are in milliseconds.
+ * (`outOfRange`). Waits are in milliseconds, limits in bytes per second;
+ * `speedLimit` is a download's, a category's or a time slot's.
  */
 export const RANGES = {
 	maxConcurrent: { min: 1, max: 50 },
+	globalLimit: { min: 0, max: 1099511627776 },
 	maxRetries: { min: 0, max: 1000 },
 	retriesBeforeYield: { min: 0, max: 100 },
 	firstRetryWaitMs: { min: 500, max: 3600000 },
 	maxBatch: { min: 10, max: 100000 },
+	speedLimit: { min: 0, max: 1099511627776 },
 } as const;

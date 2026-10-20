@@ -409,7 +409,7 @@
             }
           },
           "400": {
-            "description": "`invalidCategoryName`, `invalidExtension`, `relativeFolder` or `nonUtf8Path`",
+            "description": "`invalidCategoryName`, `invalidExtension`, `relativeFolder`, `nonUtf8Path` or `outOfRange` (`speedLimit`)",
             "content": {
               "application/json": {
                 "schema": {
@@ -577,7 +577,7 @@
             "description": "Replaced"
           },
           "400": {
-            "description": "`invalidCategoryName`, `invalidExtension`, `relativeFolder` or `nonUtf8Path`",
+            "description": "`invalidCategoryName`, `invalidExtension`, `relativeFolder`, `nonUtf8Path` or `outOfRange` (`speedLimit`)",
             "content": {
               "application/json": {
                 "schema": {
@@ -1026,7 +1026,7 @@
             }
           },
           "400": {
-            "description": "`invalidUrl`, `unsupportedScheme`, `relativeFolder`, `nonUtf8Path`, `noFolder` or `stopBeforeStart`",
+            "description": "`invalidUrl`, `unsupportedScheme`, `relativeFolder`, `nonUtf8Path`, `noFolder`, `stopBeforeStart` or `outOfRange` (`startAt`, `stopAt`: past the end of year 9999)",
             "content": {
               "application/json": {
                 "schema": {
@@ -1510,7 +1510,7 @@
             "description": "Changed"
           },
           "400": {
-            "description": "`invalidJobId` or `stopBeforeStart`",
+            "description": "`invalidJobId`, `stopBeforeStart` or `outOfRange` (`speedLimit`, `startAt`, `stopAt`)",
             "content": {
               "application/json": {
                 "schema": {
@@ -2242,7 +2242,7 @@
             }
           },
           "400": {
-            "description": "`slotWithoutDays`, `slotWithoutEffect`, `invalidTime` or `outOfRange` (`maxConcurrent`)",
+            "description": "`slotWithoutDays`, `slotWithoutEffect`, `invalidTime` or `outOfRange` (`maxConcurrent`, `speedLimit`)",
             "content": {
               "application/json": {
                 "schema": {
@@ -2413,7 +2413,7 @@
             "description": "Replaced"
           },
           "400": {
-            "description": "`slotWithoutDays`, `slotWithoutEffect`, `invalidTime` or `outOfRange` (`maxConcurrent`)",
+            "description": "`slotWithoutDays`, `slotWithoutEffect`, `invalidTime` or `outOfRange` (`maxConcurrent`, `speedLimit`)",
             "content": {
               "application/json": {
                 "schema": {
@@ -4966,7 +4966,7 @@
           },
           {
             "type": "object",
-            "description": "A setting must be from `min` to `max`; `setting` is its field name\n(`maxConcurrent`…).",
+            "description": "A value must be from `min` to `max`; `setting` is its field name\n(`maxConcurrent`, `globalLimit`, `speedLimit`, `startAt`…).",
             "required": [
               "setting",
               "min",
