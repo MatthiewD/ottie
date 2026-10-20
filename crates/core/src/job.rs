@@ -323,6 +323,10 @@ pub struct JobSnapshot {
     pub stop_at: Option<SystemTime>,
     /// While `Scheduled`: the time slot that keeps it from running, if one does.
     pub held_by: Option<SlotId>,
+    /// How many times it started over from zero since the daemon started
+    /// (its file changed, or ranges stopped working): a reader that sees it
+    /// change knows its bytes are from another version (not saved).
+    pub restarts: u64,
 }
 
 /// Broadcast to every subscriber of the manager.

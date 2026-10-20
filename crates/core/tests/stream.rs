@@ -194,6 +194,47 @@ async fn a_removed_download_stops_the_reader() {
     assert!(!first.is_empty());
 }
 
+#[tokio::test]
+async fn a_restart_the_reader_missed_still_stops_it() {
+    let mut s = setup(512 * 1024, 1, 20).await;
+    let id = s.add().await;
+    let (mut reader, _) = Reader::open(&s.manager, id).await.unwrap();
+    let first = reader.read(0, READ).await.unwrap();
+
+    // Another version of the same size: the resume starts over.
+    s.manager.pause(id).await.unwrap();
+    s.server.configure(|b| {
+        b.body = test_data(512 * 1024, 4).into();
+        b.etag = Some("\"v2\"".to_owned());
+    });
+    s.manager.resume(id).await.unwrap();
+    tokio::time::timeout(TIMEOUT, async {
+        loop {
+            if let JobEvent::Restarted { id: restarted, .. } = s.events.recv().await.unwrap()
+                && restarted == id
+            {
+                return;
+            }
+        }
+    })
+    .await
+    .expect("it never started over");
+    // More news than the reader's queue holds: the restart is pushed out.
+    for limit in 0..1100 {
+        let change = JobChange {
+            speed_limit: Some(1_000_000 + limit),
+            ..JobChange::default()
+        };
+        s.manager.change_job(id, change).await.unwrap();
+    }
+
+    let err = reader.read(first.len() as u64, READ).await.unwrap_err();
+    assert!(
+        matches!(err, Error::FileChanged(changed) if changed == id),
+        "{err:?}"
+    );
+}
+
 impl Setup {
     /// Whether a request for a range starting at `start` reached the server.
     fn requested_from(&self, start: u64) -> bool {

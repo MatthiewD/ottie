@@ -43,6 +43,10 @@ pub struct Reader {
     /// The file being read and where it was when opened. Reopened when the
     /// job's file moves or is renamed on completion.
     file: Option<(PathBuf, File)>,
+    /// The job's restarts when it opened: another count means its file is
+    /// another version. Its event says so sooner, but a reader that falls
+    /// behind (a player paused for minutes) can miss it; the count it can't.
+    restarts: u64,
 }
 
 impl Reader {
@@ -56,9 +60,11 @@ impl Reader {
             events: manager.subscribe(),
             head: manager.head(id),
             file: None,
+            restarts: 0,
         };
         loop {
             let job = reader.manager.job(id).await?;
+            reader.restarts = job.restarts;
             if let Some(file_name) = job.file_name.clone() {
                 let total = match job.state {
                     JobState::Completed => Some(job.total.unwrap_or(job.downloaded)),
@@ -81,6 +87,9 @@ impl Reader {
         self.head.set(offset);
         loop {
             let job = self.manager.job(self.id).await?;
+            if job.restarts != self.restarts {
+                return Err(Error::FileChanged(self.id));
+            }
             let complete = job.state == JobState::Completed;
             if job.total.is_some_and(|total| offset >= total) {
                 return Ok(Vec::new());
@@ -136,6 +145,8 @@ impl Reader {
     }
 
     /// Fails if the job was removed or started over since the last look.
+    /// Events missed by falling behind are no loss: a restart among them
+    /// still shows in the job's count (`restarts`).
     fn check_events(&mut self) -> Result<(), Error> {
         loop {
             match self.events.try_recv() {

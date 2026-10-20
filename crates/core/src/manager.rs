@@ -759,6 +759,8 @@ struct Job {
     gave_way: u64,
     /// Running, but the speed limits give it no bandwidth (not saved).
     waiting_for_bandwidth: bool,
+    /// Times it started over since the daemon started (not saved).
+    restarts: u64,
     /// While `Scheduled`: when it joins the queue. Also set on a running job
     /// that is stopping to wait for it (`Stop::Hold`).
     start_at: Option<SystemTime>,
@@ -834,6 +836,7 @@ impl Job {
             retry_at: None,
             gave_way: 0,
             waiting_for_bandwidth: false,
+            restarts: 0,
             start_at: record.start_at,
             stop_at: record.stop_at,
             ignores_slots: record.ignores_slots,
@@ -878,6 +881,7 @@ impl Job {
             start_at: self.start_at,
             stop_at: self.stop_at,
             held_by: self.held_by,
+            restarts: self.restarts,
         }
     }
 
@@ -1229,6 +1233,7 @@ impl<B: Backend> Actor<B> {
             // Saved with the next progress save; only flushed ranges are reported.
             Event::Checkpoint { segments } => job.download.segments = segments,
             Event::Restarted(reason) => {
+                job.restarts += 1;
                 let _ = self.events.send(JobEvent::Restarted { id, reason });
             }
         }
@@ -1379,6 +1384,7 @@ impl<B: Backend> Actor<B> {
                 retry_at: None,
                 gave_way: 0,
                 waiting_for_bandwidth: false,
+                restarts: 0,
                 start_at,
                 stop_at: new.stop_at,
                 ignores_slots: false,
