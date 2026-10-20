@@ -5,7 +5,7 @@
 
 use std::io;
 use std::sync::Arc;
-use std::time::Duration;
+use std::time::{Duration, Instant};
 
 use bytes::Bytes;
 use reqwest::{Client, Response, Url};
@@ -216,6 +216,7 @@ async fn stream_body(
         ..
     } = env;
     let stall = config.stall_timeout;
+    let mut synced = Instant::now();
     loop {
         // Wait for whichever comes first: the next chunk or a pause request.
         // `biased` checks the pause first, so a fast server can't delay it.
@@ -231,6 +232,12 @@ async fn stream_body(
         };
         writer.write_all(&bytes).await?;
         dl.downloaded += bytes.len() as u64;
+        // On the disk before the progress that covers it is saved (every 2 s),
+        // as several connections do (`segmented.rs`).
+        if synced.elapsed() >= SYNC_EVERY {
+            flush(writer).await?;
+            synced = Instant::now();
+        }
         on_event(Event::Progress {
             downloaded: dl.downloaded,
             total: dl.total,
@@ -244,6 +251,9 @@ async fn stream_body(
         }
     }
 }
+
+/// How often one connection's bytes are synced to disk while it downloads.
+const SYNC_EVERY: Duration = Duration::from_secs(1);
 
 /// Writes buffered bytes and asks the OS to put them on disk.
 pub(crate) async fn flush(writer: &mut BufWriter<File>) -> io::Result<()> {
