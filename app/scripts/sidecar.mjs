@@ -12,7 +12,8 @@ const root = dirname(app);
 const run = (command) => execSync(command, { cwd: root, stdio: 'inherit' });
 
 run('pnpm --filter ui build');
-run('cargo build --release -p ottie');
+// --locked: the release uses Cargo.lock's versions, as the Dockerfile does.
+run('cargo build --release --locked -p ottie');
 
 const target = /^host: (\S+)$/m.exec(execFileSync('rustc', ['-vV'], { encoding: 'utf8' }))[1];
 const exe = process.platform === 'win32' ? '.exe' : '';

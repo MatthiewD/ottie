@@ -116,6 +116,12 @@ jobs:
             cp "$file" "out/$name"
           done
           ls -l out
+          # --clobber replaces files of the same name: never on a release
+          # people may already have downloaded.
+          if [ "$(gh release view "$TAG" --json isDraft --jq .isDraft)" != "true" ]; then
+            echo "::error::$TAG is already published: its files stay as they are"
+            exit 1
+          fi
           gh release upload "$TAG" out/* --clobber
 
   extension:
@@ -142,4 +148,10 @@ jobs:
             (cd "extension/dist/$browser" && zip -qr "$GITHUB_WORKSPACE/out/Ottie_${version}_extension-$browser.zip" .)
           done
           ls -l out
+          # --clobber replaces files of the same name: never on a release
+          # people may already have downloaded.
+          if [ "$(gh release view "$TAG" --json isDraft --jq .isDraft)" != "true" ]; then
+            echo "::error::$TAG is already published: its files stay as they are"
+            exit 1
+          fi
           gh release upload "$TAG" out/* --clobber

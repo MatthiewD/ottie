@@ -356,7 +356,7 @@ docs/remote.md     reaching Ottie from other devices: Tailscale, a VPN, a revers
 .github/           workflows/ci.yml (every push to main and pull request: fmt, clippy and tests on Linux and
                    Windows, generated files committed, the UI's and extension's check/test/lint, cargo audit),
                    workflows/release.yml (a tag v<version>[-<label>] → a draft pre-release: installers on Windows,
-                   Linux, macOS, the extensions' zips; 0056) +
+                   Linux, macOS, the extensions' zips; files replaced only while it's a draft; 0056) +
                    release-notes.md (its text, for testers, before the version's section of CHANGELOG.md) [exists]
 CHANGELOG.md       what each version adds, changes and fixes, for the people using Ottie (Keep a Changelog, 0057)
                    [exists]
