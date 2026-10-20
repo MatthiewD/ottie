@@ -1,0 +1,88 @@
+# The checks CLAUDE.md asks for before a task is done, on every push to main
+# and every pull request: Rust on Linux and Windows (so the #[cfg(windows)] code
+# compiles and its tests run), the UI and the extension, and known advisories
+# in the Rust dependencies.
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+# A newer push to the same branch or pull request makes an older run pointless.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  CARGO_TERM_COLOR: always
+  # Full debug info makes target/ too big to cache; line numbers in panics are enough.
+  CARGO_PROFILE_DEV_DEBUG: line-tables-only
+
+jobs:
+  rust:
+    name: Rust (${{ matrix.name }})
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: Linux
+            os: ubuntu-latest
+          - name: Windows
+            os: windows-latest
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Linux packages (Tauri, the tray, notification sounds)
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y build-essential pkg-config file libwebkit2gtk-4.1-dev \
+            libayatana-appindicator3-dev librsvg2-dev libxdo-dev libssl-dev libasound2-dev
+      - run: rustup toolchain install stable --profile minimal --component clippy,rustfmt && rustup default stable
+      - uses: Swatinem/rust-cache@v2
+      - name: cargo fmt
+        if: runner.os == 'Linux'
+        run: cargo fmt --all --check
+      - run: cargo clippy --workspace --all-targets --locked -- -D warnings
+      - run: cargo test --workspace --locked
+      # `cargo test -p ottie-api` writes the TypeScript types and openapi.json:
+      # a change to the API must commit them too.
+      - name: Generated files are committed
+        if: runner.os == 'Linux'
+        run: git diff --exit-code -- shared/api-types docs/api/openapi.json
+
+  js:
+    name: UI and extension
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm --filter ui check
+      - run: pnpm --filter ui test
+      - run: pnpm --filter ui lint
+      - run: pnpm --filter extension check
+      - run: pnpm --filter extension test
+      - run: pnpm --filter extension lint
+
+  # Fails on a known vulnerability in Cargo.lock. Unmaintained or unsound crates
+  # are only warnings: today they're deep in Tauri's Linux dependencies (glib,
+  # zbus), with nothing to move to yet.
+  advisories:
+    name: Rust advisories
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: taiki-e/install-action@v2
+        with:
+          tool: cargo-audit
+      - run: cargo audit
