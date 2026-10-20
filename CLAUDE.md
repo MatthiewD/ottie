@@ -140,7 +140,8 @@ crates/ottie/      ottie: the binary  [exists]
   src/open.rs        `ottie open`: browser on the UI, signed in (via a private redirect page); `ottie link`
   src/config.rs      folders (OS defaults / flags / OTTIE_* env / --system: the system service's), config.toml,
                      listen address
-  src/token.rs       token file: created on first use (never for --system), `ottie token` prints it (`--new` replaces it)
+  src/token.rs       token file: created on first use (never for --system), whole at once (written beside, then linked
+                     into place; `--new` renamed over it), `ottie token` prints it (`--new` replaces it)
   src/device.rs      `ottie device add|list|remove` (0052): a client of the running daemon, with this computer's token,
                      sent only once what answers has proved it's this computer's Ottie (`check_identity`, 0058; `ottie open` too)
   src/native_host.rs the browser extension's native messaging host (0055): a browser starts `ottie` with the

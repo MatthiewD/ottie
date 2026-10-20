@@ -45,8 +45,13 @@ pub fn print(args: &TokenArgs) -> Result<()> {
             .with_context(|| format!("can't create {}", dirs.config.display()))?;
     }
     let token = generate()?;
-    write_private(&path, &format!("{token}\n"), true)
-        .with_context(|| format!("can't write {}", path.display()))?;
+    let contents = format!("{token}\n");
+    let written = if dirs.system {
+        write_private(&path, &contents, true)
+    } else {
+        replace_private(&path, &contents)
+    };
+    written.with_context(|| format!("can't write {}", path.display()))?;
     println!("{token}");
     eprintln!(
         "The old token no longer works: sign in again with `ottie open` or `ottie link`, \
@@ -85,7 +90,7 @@ pub fn load_or_create(config_dir: &Path) -> Result<String> {
     fs::create_dir_all(config_dir)
         .with_context(|| format!("can't create {}", config_dir.display()))?;
     let token = generate()?;
-    match write_private(&path, &format!("{token}\n"), false) {
+    match create_private(&path, &format!("{token}\n")) {
         Ok(()) => Ok(token),
         // Another `ottie` created it at the same moment: use that one.
         Err(err) if err.kind() == io::ErrorKind::AlreadyExists => {
@@ -121,6 +126,40 @@ fn generate() -> Result<String> {
     Ok(hex)
 }
 
+/// Creates `path` (owner-only) with all of `contents` at once: written
+/// beside it, then linked into place, so a reader never finds it empty.
+/// `AlreadyExists` if it's there. Without hard links (some network folders),
+/// as `write_private` does.
+fn create_private(path: &Path, contents: &str) -> io::Result<()> {
+    let beside = beside(path);
+    write_private(&beside, contents, true)?;
+    let linked = fs::hard_link(&beside, path);
+    let _ = fs::remove_file(&beside);
+    match linked {
+        Err(err) if err.kind() != io::ErrorKind::AlreadyExists => {
+            write_private(path, contents, false)
+        }
+        linked => linked,
+    }
+}
+
+/// Replaces `path` (owner-only) with `contents` at once: written beside it,
+/// then renamed over it, so a reader finds the old or the new, never empty.
+fn replace_private(path: &Path, contents: &str) -> io::Result<()> {
+    let beside = beside(path);
+    write_private(&beside, contents, true)?;
+    fs::rename(&beside, path).inspect_err(|_| {
+        let _ = fs::remove_file(&beside);
+    })
+}
+
+/// A file of this process's own beside `path`.
+fn beside(path: &Path) -> PathBuf {
+    let mut name = path.as_os_str().to_owned();
+    name.push(format!(".{}.new", std::process::id()));
+    PathBuf::from(name)
+}
+
 /// A file only the owner can read on Unix. (On Windows the config folder,
 /// %APPDATA%, is already private to the user.) `replace` overwrites an
 /// existing file; otherwise one that exists is an `AlreadyExists` error.
@@ -137,7 +176,9 @@ pub fn write_private(path: &Path, contents: &str, replace: bool) -> io::Result<(
         use std::os::unix::fs::OpenOptionsExt;
         options.mode(0o600);
     }
-    options.open(path)?.write_all(contents.as_bytes())
+    let mut file = options.open(path)?;
+    file.write_all(contents.as_bytes())?;
+    file.sync_all()
 }
 
 #[cfg(test)]
@@ -153,6 +194,20 @@ mod tests {
         assert!(first.chars().all(|c| c.is_ascii_hexdigit()));
         assert_eq!(load_or_create(&config).unwrap(), first);
         assert_ne!(load_or_create(dir.path()).unwrap(), first, "random");
+    }
+
+    #[test]
+    fn a_token_file_appears_whole() {
+        let dir = tempfile::tempdir().unwrap();
+        let file = path(dir.path());
+        create_private(&file, "first\n").unwrap();
+        let again = create_private(&file, "second\n").unwrap_err();
+        assert_eq!(again.kind(), io::ErrorKind::AlreadyExists);
+        assert_eq!(fs::read_to_string(&file).unwrap(), "first\n");
+        replace_private(&file, "third\n").unwrap();
+        assert_eq!(fs::read_to_string(&file).unwrap(), "third\n");
+        // Nothing left beside it.
+        assert_eq!(fs::read_dir(dir.path()).unwrap().count(), 1);
     }
 
     #[test]
