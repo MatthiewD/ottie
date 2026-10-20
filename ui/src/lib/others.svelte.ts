@@ -8,7 +8,7 @@ import {
 	browserEntries,
 	explainOthers,
 	loadOthers,
-	openingLink,
+	opening,
 	saveOthers,
 	withOther,
 	type Daemons,
@@ -26,7 +26,8 @@ import {
 } from './window.js';
 
 /** The list, shared by every part of the page that shows it (the title
- * bar and Settings). */
+ * bar and Settings). A browser's is changed here, then saved: if storage
+ * is blocked, it lasts as long as the page. */
 const shared: { daemons: Daemons | null; stored: Stored[] } = $state({
 	daemons: null,
 	stored: []
@@ -76,7 +77,7 @@ export class LiveOthers {
 				shared.daemons = answer;
 				return null;
 			}
-			const next = withOther(loadOthers(), name, link, location.origin);
+			const next = withOther(shared.stored, name, link, location.origin);
 			if (typeof next === 'string') {
 				return explainOthers(next);
 			}
@@ -96,7 +97,7 @@ export class LiveOthers {
 				shared.daemons = answer;
 				return null;
 			}
-			const next = loadOthers().filter((other) => other.id !== id);
+			const next = shared.stored.filter((other) => other.id !== id);
 			saveOthers(next);
 			shared.stored = next;
 			return null;
@@ -112,18 +113,13 @@ export class LiveOthers {
 				const refusal = await switchDaemon(id);
 				return refusal && explainOthers(refusal);
 			}
-			const list = loadOthers();
-			const other = list.find((each) => each.id === id);
-			if (!other) {
+			const going = id === null ? null : opening(shared.stored, id);
+			if (!going) {
 				return null;
 			}
-			// Its page remembers the token from now on: not kept here.
-			saveOthers(
-				list.map((each) =>
-					each.id === id ? { id: each.id, name: each.name, address: each.address } : each
-				)
-			);
-			location.assign(openingLink(other));
+			saveOthers(going.kept);
+			shared.stored = going.kept;
+			location.assign(going.link);
 			return null;
 		});
 	}

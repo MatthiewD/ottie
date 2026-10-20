@@ -6,6 +6,7 @@ import {
 	explainOthers,
 	MAX_NAME,
 	nameFor,
+	opening,
 	openingLink,
 	parseLink,
 	withOther
@@ -82,6 +83,18 @@ describe('a browser’s list', () => {
 		const other = { id: 1, name: 'NAS', address: 'https://nas.example/' };
 		expect(openingLink({ ...other, token: 'ab' })).toBe('https://nas.example/#token=ab');
 		expect(openingLink(other)).toBe('https://nas.example/');
+	});
+
+	it('opens from the list it’s given, and forgets the token it opened with', () => {
+		const list = [
+			{ id: 1, name: 'NAS', address: 'https://nas.example/', token: 'ab' },
+			{ id: 2, name: 'Server', address: 'https://server.example/', token: 'cd' }
+		];
+		expect(opening(list, 1)).toEqual({
+			link: 'https://nas.example/#token=ab',
+			kept: [{ id: 1, name: 'NAS', address: 'https://nas.example/' }, list[1]]
+		});
+		expect(opening(list, 3)).toBeNull();
 	});
 });
 

@@ -131,6 +131,19 @@ export function openingLink(other: Stored): string {
 	return other.token ? `${other.address}#token=${other.token}` : other.address;
 }
 
+/** Opening `id` from the list: where to go, and the list to keep, its token
+ * forgotten (its page remembers it from now on). null if it isn't listed. */
+export function opening(stored: Stored[], id: number): { link: string; kept: Stored[] } | null {
+	const other = stored.find((each) => each.id === id);
+	if (!other) {
+		return null;
+	}
+	const kept = stored.map((each) =>
+		each.id === id ? { id: each.id, name: each.name, address: each.address } : each
+	);
+	return { link: openingLink(other), kept };
+}
+
 /** A browser's list, from this page's storage. */
 export function loadOthers(): Stored[] {
 	try {

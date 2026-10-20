@@ -81,7 +81,8 @@ export class Session {
 	/** Events that arrive while the list is being fetched: applied after it. */
 	private pending: ApiEvent[] | null = null;
 	private retryMs = FIRST_RETRY_MS;
-	private timers: ReturnType<typeof setTimeout>[] = [];
+	/** The clock and a reconnect waiting to happen, cleared on `stop`. */
+	private timers = new Set<ReturnType<typeof setTimeout>>();
 	private stopped = false;
 	/** When the daemon's speed history last came: the page's own rates take
 	 * a moment to measure after that (see `nextSample`). */
@@ -104,7 +105,7 @@ export class Session {
 				nextSample(this.history, own, this.now - this.historyAt)
 			);
 		}, 1000);
-		this.timers.push(clock);
+		this.timers.add(clock);
 	}
 
 	stop(): void {
@@ -423,7 +424,11 @@ export class Session {
 					}
 				});
 			}
-			this.timers.push(setTimeout(() => this.connect(), this.retryMs));
+			const retry = setTimeout(() => {
+				this.timers.delete(retry);
+				this.connect();
+			}, this.retryMs);
+			this.timers.add(retry);
 			this.retryMs = Math.min(this.retryMs * 2, LONGEST_RETRY_MS);
 		};
 	}
