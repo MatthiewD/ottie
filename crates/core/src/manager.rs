@@ -2677,6 +2677,22 @@ impl<B: Backend> Actor<B> {
         job.download = *download;
         job.download.placement = None;
         let stop = task.as_ref().and_then(|t| t.stop);
+        // The file couldn't be written or synced as it stopped (disk full, a
+        // drive gone): the pause asked for still happens, but says why, and
+        // keeps only what's on disk.
+        let disk_failure = match (&result, stop) {
+            (Err(Error::Io(err)), Some(Stop::Pause | Stop::Shutdown)) => {
+                Some((err.kind(), err.to_string()))
+            }
+            _ => None,
+        };
+        if disk_failure.is_some()
+            && job.download.segments.is_empty()
+            && let Some(part) = job.download.part_path()
+        {
+            // One connection: the file's length is the truth.
+            job.download.downloaded = tokio::fs::metadata(&part).await.map_or(0, |m| m.len());
+        }
 
         let next = match (result, stop) {
             // Finished before it noticed the stop request: keep the file.
@@ -2685,6 +2701,10 @@ impl<B: Backend> Actor<B> {
             // it ended, while it stopped.
             (_, Some(Stop::Hold)) if !job.held(SystemTime::now()) && hold.is_none() => {
                 Some((JobState::Queued, None))
+            }
+            (Err(err), Some(Stop::Pause | Stop::Shutdown)) if disk_failure.is_some() => {
+                tracing::warn!(%id, error = %err, "the file failed as the download stopped");
+                Some((JobState::Paused, Some(Problem::from(&err))))
             }
             (_, Some(stop)) => stop.target().map(|state| (state, None)),
             // Only the manager cancels the token, so this means paused.
@@ -2738,6 +2758,13 @@ impl<B: Backend> Actor<B> {
             let answer = match asked.target() {
                 _ if removed && asked == Stop::Remove => Ok(()),
                 _ if removed => Err(Error::JobNotFound(id)),
+                // Paused, but its file isn't as it should be.
+                Some(JobState::Paused) if disk_failure.is_some() => {
+                    let (kind, text) = disk_failure
+                        .clone()
+                        .unwrap_or((io::ErrorKind::Other, String::new()));
+                    Err(Error::Io(io::Error::new(kind, text)))
+                }
                 Some(wanted) if wanted != final_state => Err(Error::InvalidTransition {
                     from: final_state,
                     to: wanted,
