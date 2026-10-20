@@ -4,6 +4,10 @@ What changes in Ottie from one version to the next: new features, changes and fi
 
 ## [Unreleased]
 
+### Security
+
+- Secure connections (HTTPS, FTPS) use an updated version of rustls, the library behind them, which fixes four security advisories. None of them could be reached through the way Ottie uses it.
+
 ## [0.1.0-experimental] - 2026-10-17
 
 The initial release, for testing. What Ottie does is in the [README](https://github.com/Matfalco/ottie#features).
