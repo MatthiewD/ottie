@@ -330,6 +330,18 @@ async fn a_browsers_headers_go_with_every_request_of_its_job_only() {
     }
 }
 
+/// The events received so far, but for `running`'s: it goes on downloading
+/// meanwhile, and its progress may come at any time.
+fn others(events: &mut Receiver<JobEvent>, running: JobId) -> Vec<JobEvent> {
+    std::iter::from_fn(|| events.try_recv().ok())
+        .filter(|event| match event {
+            JobEvent::Changed(job) => job.id != running,
+            JobEvent::Progress { id, .. } => *id != running,
+            _ => true,
+        })
+        .collect()
+}
+
 async fn wait_completed(events: &mut Receiver<JobEvent>, id: JobId) {
     tokio::time::timeout(TIMEOUT, async {
         loop {
@@ -561,7 +573,9 @@ async fn reordering_changes_which_job_starts_next() {
 
 #[tokio::test]
 async fn reordering_moves_waiting_jobs_within_their_priority() {
-    let mut s = setup(1, 50).await;
+    // Slow enough that the running job can't finish (and let `high` start)
+    // before the test is over.
+    let mut s = setup(1, 1000).await;
     let running = s.add("a.bin").await;
     let high = s.add("b.bin").await;
     let queued = s.add("c.bin").await;
@@ -578,14 +592,17 @@ async fn reordering_moves_waiting_jobs_within_their_priority() {
         .reorder(vec![queued, running], Reorder::Up)
         .await
         .unwrap();
-    assert!(s.events.try_recv().is_err(), "nothing moved");
+    assert!(others(&mut s.events, running).is_empty(), "nothing moved");
 
     // A paused job moves too; the two swap places, and both are announced.
     s.manager.reorder(vec![paused], Reorder::Up).await.unwrap();
-    let mut moved = Vec::new();
-    while let Ok(JobEvent::Changed(job)) = s.events.try_recv() {
-        moved.push((job.id, job.place));
-    }
+    let moved: Vec<_> = others(&mut s.events, running)
+        .into_iter()
+        .filter_map(|event| match event {
+            JobEvent::Changed(job) => Some((job.id, job.place)),
+            _ => None,
+        })
+        .collect();
     let expected = [
         (queued, place(&before, paused)),
         (paused, place(&before, queued)),
@@ -618,7 +635,7 @@ async fn reordering_moves_waiting_jobs_within_their_priority() {
     for to in [Reorder::Before(high), Reorder::After(running)] {
         s.manager.reorder(vec![paused], to).await.unwrap();
     }
-    assert!(s.events.try_recv().is_err(), "nothing moved");
+    assert!(others(&mut s.events, running).is_empty(), "nothing moved");
 
     // An unknown job: nothing moves.
     s.manager.remove(high).await.unwrap();
@@ -634,7 +651,7 @@ async fn reordering_moves_waiting_jobs_within_their_priority() {
             Err(Error::JobNotFound(id)) if id == high
         ));
     }
-    assert!(s.events.try_recv().is_err());
+    assert!(others(&mut s.events, running).is_empty());
 }
 
 #[tokio::test]
