@@ -687,10 +687,22 @@ async fn the_real_name_decides_streaming_mode_unless_chosen() {
     s.server
         .configure(|b| b.content_disposition = Some(header.as_bytes().to_vec()));
     let guessed = s.add("get.php").await;
+    // As it was added: the first response may already have renamed it.
+    let added = tokio::time::timeout(TIMEOUT, async {
+        loop {
+            if let JobEvent::Changed(job) = s.events.recv().await.unwrap()
+                && job.id == guessed
+            {
+                return job;
+            }
+        }
+    })
+    .await
+    .unwrap();
+    assert!(!added.streaming, "from .php");
     let url = s.server.url("/files/get.php");
     let chosen = NewJob::new(url).in_dir(s.dir.path()).streaming(false);
     let chosen = s.manager.add(chosen).await.unwrap();
-    assert!(!s.job(guessed).await.streaming, "from .php");
 
     s.wait_for_all(&[guessed, chosen], JobState::Completed)
         .await;
