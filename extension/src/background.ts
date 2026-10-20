@@ -16,10 +16,18 @@ import { loadLook, pageLanguage } from './lib/look';
 import { batchAddress, linksInPage } from './lib/menus';
 import { RecentPosts } from './lib/posts';
 import { loadSettings, saveSettings, type Pairing } from './lib/settings';
-import { skipReason } from './lib/takeover';
+import { settle, skipReason, type BrowserDownloads } from './lib/takeover';
 import { isSchemeMessage, shadeFor, toolbarIcons } from './lib/toolbar';
 
 const posts = new RecentPosts();
+
+const downloads: BrowserDownloads = {
+	cancel: (id) => chrome.downloads.cancel(id),
+	state: async (id) => (await chrome.downloads.search({ id }))[0]?.state,
+	erase: async (id) => {
+		await chrome.downloads.erase({ id });
+	}
+};
 
 chrome.webRequest.onBeforeRequest.addListener(
 	(details) => {
@@ -200,15 +208,9 @@ async function takeOver(item: chrome.downloads.DownloadItem): Promise<void> {
 	}
 	await setBrowserUi(false);
 	try {
-		await chrome.downloads.cancel(item.id);
-		const [now] = await chrome.downloads.search({ id: item.id });
-		if (now?.state === 'complete') {
-			await removeJob(pairing, id).catch(() => undefined);
-			return;
+		if ((await settle(downloads, item.id, () => removeJob(pairing, id))) === 'both') {
+			console.warn('The browser kept a download Ottie took too:', item.url);
 		}
-		await chrome.downloads.erase({ id: item.id });
-	} catch (error) {
-		console.warn('The browser kept a download Ottie took too:', error);
 	} finally {
 		await setBrowserUi(true);
 	}

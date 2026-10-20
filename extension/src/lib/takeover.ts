@@ -83,3 +83,42 @@ export function skipReason(
 	}
 	return null;
 }
+
+/** The browser's side of its downloads, as `settle` needs it. */
+export interface BrowserDownloads {
+	cancel(id: number): Promise<void>;
+	/** Its `state` now; undefined once it's off the list. */
+	state(id: number): Promise<string | undefined>;
+	erase(id: number): Promise<void>;
+}
+
+/** Which of the two copies of a download is left. */
+export type Kept = 'ottie' | 'browser' | 'both';
+
+/** Once Ottie has accepted a download: the browser's is cancelled and taken
+ * off its list, unless the browser finished it first; then it keeps its file
+ * and Ottie's job is removed. Firefox refuses to cancel a download that has
+ * finished, so what became of it is asked even when cancelling fails. */
+export async function settle(
+	browser: BrowserDownloads,
+	id: number,
+	removeOttie: () => Promise<void>
+): Promise<Kept> {
+	// Asked about next, whatever the answer.
+	await browser.cancel(id).catch(() => undefined);
+	const state = await browser.state(id).catch(() => 'unknown');
+	if (state === 'complete') {
+		try {
+			await removeOttie();
+			return 'browser';
+		} catch {
+			return 'both';
+		}
+	}
+	if (state === 'in_progress' || state === 'unknown') {
+		return 'both';
+	}
+	// Cancelled, or already off the list.
+	await browser.erase(id).catch(() => undefined);
+	return 'ottie';
+}

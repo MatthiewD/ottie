@@ -15,6 +15,7 @@ What changes in Ottie from one version to the next: new features, changes and fi
 - Opening Ottie while it's still starting in the tray at sign-in now shows its window once it's ready. Before, nothing happened.
 - In the desktop app, another computer's Ottie removed while the window was still switching to it is no longer shown anyway, and after several switches in a row, the last one chosen is the one shown.
 - On Linux, the system's tray menu greys out Pause all, Resume all and the speed limit for another computer's Ottie added with a read-only link, as Ottie's own menu does. They did nothing.
+- In Firefox, when the browser finished a download before Ottie took it over, Ottie's copy is now removed. Ottie downloaded the file a second time.
 
 ### Security
 

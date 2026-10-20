@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { DEFAULTS, type ExtensionSettings } from './settings';
-import { skipReason, type BrowserDownload } from './takeover';
+import { settle, skipReason, type BrowserDownload, type BrowserDownloads } from './takeover';
 
 const SIGNED_IN: ExtensionSettings = {
 	...DEFAULTS,
@@ -49,5 +49,73 @@ describe('skipReason', () => {
 	it('leaves a download that came from a form to the browser', () => {
 		const posted = (url: string) => url === ITEM.url;
 		expect(skipReason(ITEM, SIGNED_IN, posted)).toBe('posted');
+	});
+});
+
+/** A browser whose download ends up in `state`; `refuses`: cancelling
+ * fails, as Firefox's does for a finished download. */
+function browser(state: string | undefined, refuses = false) {
+	const calls: string[] = [];
+	const downloads: BrowserDownloads = {
+		cancel: async () => {
+			calls.push('cancel');
+			if (refuses) {
+				throw new Error('Download is not active');
+			}
+		},
+		state: async () => {
+			calls.push('state');
+			return state;
+		},
+		erase: async () => {
+			calls.push('erase');
+		}
+	};
+	return { downloads, calls };
+}
+
+describe('settle', () => {
+	const removed = () => {
+		const calls: string[] = [];
+		return { calls, remove: async () => void calls.push('remove') };
+	};
+
+	it("takes the browser's download off its list once Ottie has it", async () => {
+		const { downloads, calls } = browser('interrupted');
+		const ottie = removed();
+		expect(await settle(downloads, 7, ottie.remove)).toBe('ottie');
+		expect(calls).toEqual(['cancel', 'state', 'erase']);
+		expect(ottie.calls).toEqual([]);
+	});
+
+	it("removes Ottie's job when the browser finished first", async () => {
+		const { downloads, calls } = browser('complete');
+		const ottie = removed();
+		expect(await settle(downloads, 7, ottie.remove)).toBe('browser');
+		expect(calls).toEqual(['cancel', 'state']);
+		expect(ottie.calls).toEqual(['remove']);
+	});
+
+	it('does so too when cancelling a finished download fails (Firefox)', async () => {
+		const { downloads } = browser('complete', true);
+		const ottie = removed();
+		expect(await settle(downloads, 7, ottie.remove)).toBe('browser');
+		expect(ottie.calls).toEqual(['remove']);
+	});
+
+	it('says when both are left', async () => {
+		const ottie = removed();
+		expect(await settle(browser('in_progress', true).downloads, 7, ottie.remove)).toBe('both');
+		const failing = async () => {
+			throw new Error('unreachable');
+		};
+		expect(await settle(browser('complete').downloads, 7, failing)).toBe('both');
+		expect(ottie.calls).toEqual([]);
+	});
+
+	it('leaves Ottie the download the browser no longer lists', async () => {
+		const { downloads, calls } = browser(undefined);
+		expect(await settle(downloads, 7, removed().remove)).toBe('ottie');
+		expect(calls).toEqual(['cancel', 'state', 'erase']);
 	});
 });
