@@ -179,6 +179,33 @@ async fn pause_and_resume_is_byte_identical() {
 }
 
 #[tokio::test]
+async fn a_failed_restart_never_completes_a_file_with_holes() {
+    let s = setup(SIZE, 2).await;
+    let mut dl = s.download();
+    let (result, _) = s.run(&mut dl, Some(SIZE as u64 * 2 / 5), || {}).await;
+    assert_eq!(result.unwrap(), Outcome::Paused);
+    assert_eq!(s.part_len(), SIZE as u64);
+
+    // The same file, but the server ignores ranges now (a restart), and the
+    // restart's own request fails.
+    s.server.configure(|b| {
+        b.ranges = false;
+        b.fail_from_start = Some((StatusCode::SERVICE_UNAVAILABLE, 1));
+    });
+    let (result, events) = s.run(&mut dl, None, || {}).await;
+    assert!(result.is_err(), "{result:?}");
+    assert_eq!(restarts(&events), [RestartReason::RangesIgnored]);
+    assert!(dl.segments.is_empty());
+    assert_eq!(s.part_len(), 0, "the file is as empty as its map");
+
+    // Ranges work again: the next try starts from zero, where a resume at
+    // the old full length would have got a 416 and called it complete.
+    s.server.configure(|b| b.ranges = true);
+    let (result, _) = s.run(&mut dl, None, || {}).await;
+    s.assert_complete(result.unwrap(), &s.data);
+}
+
+#[tokio::test]
 async fn a_paused_download_resumes_after_its_file_moved() {
     // What moving a download to another category's folder does.
     let s = setup(SIZE, 2).await;

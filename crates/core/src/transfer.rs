@@ -9,7 +9,7 @@ use std::time::Duration;
 
 use bytes::Bytes;
 use reqwest::{Client, Response, Url};
-use tokio::fs::File;
+use tokio::fs::{File, OpenOptions};
 use tokio::io::{AsyncWriteExt, BufWriter};
 use tokio_util::sync::CancellationToken;
 
@@ -112,15 +112,32 @@ pub(crate) async fn reserve(dl: &mut Download, suggested: String) -> Result<(Str
     Ok((name, file))
 }
 
-pub(crate) fn restarting(
+/// Starts again from zero: forgets what arrived and empties the
+/// `.part.ottie` at once, before the next request, so the file always agrees
+/// with what `dl` says arrived. If that request fails, the next try finds an
+/// empty file and starts from zero; it never finds a full-size file with
+/// holes, which a resume at its length would take as complete. Synced, so it
+/// holds before the empty map can be saved.
+pub(crate) async fn restarting(
     dl: &mut Download,
     reason: RestartReason,
     on_event: &mut impl FnMut(Event),
-) {
+) -> Result<(), Error> {
     tracing::debug!(url = %redact(&dl.url), ?reason, "restarting download from zero");
     dl.downloaded = 0;
     dl.segments.clear();
+    if let Some(part) = dl.part_path() {
+        match OpenOptions::new().write(true).open(&part).await {
+            Ok(file) => {
+                file.set_len(0).await?;
+                file.sync_all().await?;
+            }
+            Err(e) if e.kind() == io::ErrorKind::NotFound => {}
+            Err(e) => return Err(e.into()),
+        }
+    }
     on_event(Event::Restarted(reason));
+    Ok(())
 }
 
 pub(crate) fn started(dl: &Download, name: &str, on_event: &mut impl FnMut(Event)) {

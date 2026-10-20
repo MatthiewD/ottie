@@ -11,7 +11,7 @@ Accepted 2026-10-12.
 - Coordinator and connection share three atomics: `end` (only the coordinator lowers it, on a split), `pos` (written so far) and `durable` (flushed to disk).
 - The `.part.ottie` file gets its full size up front. A resume checks that length; a different size means `RestartReason::PartFileDamaged`.
 - Connections flush at least every second. `Event::Checkpoint` reports only flushed ranges; the manager saves them with the next progress save (rule from 0008).
-- Every extra request is a closed range (`bytes=N-M`) with `If-Range`. A `200`, or a `Content-Range` that doesn't match, means the file changed: all connections stop and the run restarts from zero, at most once per run (`Error::RemoteUnstable` after that).
+- Every extra request is a closed range (`bytes=N-M`) with `If-Range`. A `200`, or a `Content-Range` that doesn't match, means the file changed: all connections stop and the run restarts from zero, at most once per run (`Error::RemoteUnstable` after that). A restart empties the `.part.ottie` (synced) before its new request, so if that request fails, the next try finds an empty file to match the empty map, never a file at full size with holes that a resume at its length would take as complete (added 2026-10-20).
 - A connection may write a few bytes past a split point it hadn't noticed yet. That's harmless, because `If-Range` guarantees both connections write the same bytes, and `done` is capped at `end`.
 - An error on one connection stops the others and ends the run. Retries come in 2f.
 

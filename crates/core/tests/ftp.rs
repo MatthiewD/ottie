@@ -62,6 +62,17 @@ impl Setup {
         dl: &mut Download,
         pause_at: Option<u64>,
     ) -> (Result<Outcome, Error>, Vec<Event>) {
+        self.run_seeing(config, dl, pause_at, |_| {}).await
+    }
+
+    /// [`Setup::run`], showing `seeing` each event as it comes.
+    async fn run_seeing(
+        &self,
+        config: HttpConfig,
+        dl: &mut Download,
+        pause_at: Option<u64>,
+        mut seeing: impl FnMut(&Event) + Send,
+    ) -> (Result<Outcome, Error>, Vec<Event>) {
         let backend = NativeBackend::with_config(config).unwrap();
         let cancel = CancellationToken::new();
         let mut events = Vec::new();
@@ -71,6 +82,7 @@ impl Setup {
             {
                 cancel.cancel();
             }
+            seeing(&event);
             events.push(event);
         };
         let result = backend
@@ -228,6 +240,44 @@ async fn pauses_and_resumes_over_several_connections() {
     let (result, events) = s.run(SEVERAL, &mut dl, None).await;
     s.assert_complete(result);
     assert!(!events.iter().any(|e| matches!(e, Event::Restarted(_))));
+}
+
+#[tokio::test]
+async fn a_failed_restart_never_completes_a_file_with_holes() {
+    let s = setup(1024 * 1024, |b| {
+        b.chunk_delay = Some(Duration::from_millis(50))
+    })
+    .await;
+    let mut dl = s.download("ftp", None);
+    let (result, _) = s.run(SEVERAL, &mut dl, Some(200 * 1024)).await;
+    assert_eq!(result.unwrap(), Outcome::Paused);
+    assert_eq!(s.part_len(), 1024 * 1024);
+
+    // The file seems changed, so the run starts over; then no login works.
+    s.server.configure(|b| {
+        b.chunk_delay = None;
+        b.modified = Some("20250101000000".to_owned());
+    });
+    let (result, events) = s
+        .run_seeing(SEVERAL, &mut dl, None, |event| {
+            if matches!(event, Event::Restarted(_)) {
+                s.server.configure(|b| b.max_logins = Some(0));
+            }
+        })
+        .await;
+    assert!(result.is_err(), "{result:?}");
+    assert!(events.contains(&Event::Restarted(RestartReason::RemoteChanged)));
+    assert!(dl.segments.is_empty());
+    assert_eq!(s.part_len(), 0, "the file is as empty as its map");
+
+    // Back as it was: the next try starts from zero, where the old full
+    // length with the old facts would have been taken as complete.
+    s.server.configure(|b| {
+        b.modified = Some("20240102030405".to_owned());
+        b.max_logins = None;
+    });
+    let (result, _) = s.run(SEVERAL, &mut dl, None).await;
+    s.assert_complete(result);
 }
 
 #[tokio::test]

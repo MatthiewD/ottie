@@ -2,7 +2,7 @@
 //! parallel (see `segmented.rs`) when the server supports ranges and the file
 //! is big enough.
 
-use std::io;
+use std::io::{self, SeekFrom};
 use std::path::Path;
 use std::time::Duration;
 
@@ -12,6 +12,7 @@ use reqwest::header::{
 };
 use reqwest::{Client, Response, StatusCode, Url, redirect};
 use tokio::fs::{self, File, OpenOptions};
+use tokio::io::AsyncSeekExt;
 use tokio_util::sync::CancellationToken;
 
 use crate::download::{
@@ -139,7 +140,7 @@ pub(crate) async fn run_in(
             match resume_segmented(env, dl, &name, &part, &mut on_event).await? {
                 Resumed::Stopped(outcome) => return Ok(outcome),
                 Resumed::Restart(reason) => {
-                    restarting(dl, reason, &mut on_event);
+                    restarting(dl, reason, &mut on_event).await?;
                     fresh(env, dl, name, &part).await?
                 }
             }
@@ -181,7 +182,7 @@ pub(crate) async fn run_in(
             Segmented::Cancelled => return Ok(Outcome::Paused),
             Segmented::Restart(reason) if !restarted_mid_run => {
                 restarted_mid_run = true;
-                restarting(dl, reason, &mut on_event);
+                restarting(dl, reason, &mut on_event).await?;
                 opened = fresh(env, dl, name, &part).await?;
             }
             Segmented::Restart(_) => return Err(Error::RemoteUnstable),
@@ -253,7 +254,7 @@ async fn open(
                 Resume::Continue(body) => return Ok(Opened { name, body }),
                 Resume::Restart(response, reason) => {
                     // The server already sent the whole file: use it.
-                    restarting(dl, reason, on_event);
+                    restarting(dl, reason, on_event).await?;
                     learn(dl, &response);
                     let file = File::create(&part).await?;
                     return Ok(Opened {
@@ -267,7 +268,7 @@ async fn open(
         (Some(_), _) => RestartReason::NotResumable,
     };
 
-    restarting(dl, reason, on_event);
+    restarting(dl, reason, on_event).await?;
     fresh(env, dl, name, &part).await
 }
 
@@ -326,7 +327,11 @@ async fn try_resume(
             if !content_range_matches(response.headers(), offset, None, dl.total) {
                 return Ok(Resume::Refused(RestartReason::RemoteChanged));
             }
-            let file = OpenOptions::new().append(true).open(part).await?;
+            // Written from `offset` rather than appended: a resume from zero
+            // may still be split, which sets the file's length, and Windows
+            // refuses that on a file opened to append.
+            let mut file = OpenOptions::new().write(true).open(part).await?;
+            file.seek(SeekFrom::Start(offset)).await?;
             dl.downloaded = offset;
             Ok(Resume::Continue(Some((response, file))))
         }
@@ -334,6 +339,9 @@ async fn try_resume(
             let reason = response_reason(&response, validator);
             Ok(Resume::Restart(response, reason))
         }
+        // Nothing left: safe because a file at its full length here was
+        // written in order (one connection appends; a restart empties the
+        // file at once), never one allocated in full with holes.
         StatusCode::RANGE_NOT_SATISFIABLE if dl.total == Some(offset) => {
             dl.downloaded = offset;
             Ok(Resume::Continue(None))

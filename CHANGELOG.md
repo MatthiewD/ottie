@@ -17,6 +17,7 @@ What changes in Ottie from one version to the next: new features, changes and fi
 - On Linux, the system's tray menu greys out Pause all, Resume all and the speed limit for another computer's Ottie added with a read-only link, as Ottie's own menu does. They did nothing.
 - In Firefox, when the browser finished a download before Ottie took it over, Ottie's copy is now removed. Ottie downloaded the file a second time.
 - In a browser that doesn't let pages keep data, another computer's Ottie added to the list now opens when chosen. Before, choosing it did nothing.
+- A download that had to start over, and whose new start then failed (the server busy for a moment), could later be reported complete with parts of the file missing (zeros in their place). Starting over now empties the unfinished file at once, so the next try downloads it all again.
 
 ### Security
 

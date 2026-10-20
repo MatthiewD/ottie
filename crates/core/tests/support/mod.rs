@@ -39,6 +39,9 @@ pub struct Behavior {
     pub content_disposition: Option<Vec<u8>>,
     /// Answer the next `.1` requests with status `.0` instead (`usize::MAX`: always).
     pub fail_next: Option<(StatusCode, usize)>,
+    /// The same, only for requests of the whole file (no `Range`, or
+    /// `bytes=0-`): a fresh start or a restart, not a range or a resume.
+    pub fail_from_start: Option<(StatusCode, usize)>,
     /// `Retry-After` seconds sent with those failures.
     pub retry_after: Option<u64>,
     /// After this many body bytes, stop sending without closing, once.
@@ -87,6 +90,7 @@ impl TestServer {
                 drop_after: None,
                 content_disposition: None,
                 fail_next: None,
+                fail_from_start: None,
                 retry_after: None,
                 stall_after: None,
             },
@@ -176,13 +180,16 @@ async fn serve_file(
             stall_after: b.stall_after.take(),
         };
         let disposition = b.content_disposition.clone();
-        let failure = match &mut b.fail_next {
-            Some((status, left)) if *left > 0 => {
-                *left = left.saturating_sub(1);
-                Some((*status, b.retry_after))
-            }
+        let from_start = matches!(range.as_deref(), None | Some("bytes=0-"));
+        let failing = match (&mut b.fail_next, &mut b.fail_from_start) {
+            (Some((status, left)), _) if *left > 0 => Some((*status, left)),
+            (_, Some((status, left))) if *left > 0 && from_start => Some((*status, left)),
             _ => None,
         };
+        let failure = failing.map(|(status, left)| {
+            *left = left.saturating_sub(1);
+            (status, b.retry_after)
+        });
         (
             b.body.clone(),
             b.etag.clone(),

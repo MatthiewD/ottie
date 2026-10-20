@@ -550,6 +550,8 @@ pub(crate) async fn run_in(
             } else if !facts.ranges {
                 RestartReason::RangesIgnored
             } else if dl.total == Some(offset) {
+                // Complete: as for HTTP's 416, a file at its full length
+                // with no map was written in order (a restart empties it).
                 dl.downloaded = offset;
                 started(dl, &name, &mut on_event);
                 return complete(dl, &name).await;
@@ -564,7 +566,7 @@ pub(crate) async fn run_in(
         }
     };
 
-    restarting(dl, reason, &mut on_event);
+    restarting(dl, reason, &mut on_event).await?;
     let (ftp, facts) = connect_for_facts(&link).await?;
     learn(dl, &facts);
     let file = File::create(&part).await?;
@@ -628,7 +630,7 @@ async fn transfer(
             Segmented::Cancelled => return Ok(Outcome::Paused),
             Segmented::Restart(reason) if !restarted_mid_run => {
                 restarted_mid_run = true;
-                restarting(dl, reason, on_event);
+                restarting(dl, reason, on_event).await?;
                 let facts;
                 (ftp, facts) = connect_for_facts(link).await?;
                 learn(dl, &facts);
