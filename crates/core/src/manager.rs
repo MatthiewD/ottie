@@ -2203,7 +2203,10 @@ impl<B: Backend> Actor<B> {
             .map(|(id, _)| *id)
     }
 
-    /// A `Retrying` job past its in-slot retries whose slot a queued job could use.
+    /// A `Retrying` job past its in-slot retries whose slot a queued job could use:
+    /// one `next_queued` would start in its place. Not one it wouldn't (a job
+    /// whose file is moving), or the retrying job would take its slot straight
+    /// back, without its wait.
     fn ready_to_give_way(&self, busy: &HashMap<CategoryId, usize>) -> Option<JobId> {
         let in_slot = self.settings.retry.retries_before_yield;
         self.jobs
@@ -2216,9 +2219,7 @@ impl<B: Backend> Actor<B> {
                 if let Some(count) = after.get_mut(&job.category) {
                     *count = count.saturating_sub(1);
                 }
-                self.jobs.values().any(|waiting| {
-                    waiting.state == JobState::Queued && self.has_room(waiting.category, &after)
-                })
+                self.next_queued(&after).is_some()
             })
             .map(|(id, _)| *id)
     }
