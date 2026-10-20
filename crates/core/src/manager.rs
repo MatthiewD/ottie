@@ -17,7 +17,7 @@ use tokio_util::sync::CancellationToken;
 use crate::backend::Backend;
 use crate::category::{self, BuiltIn, Category, CategoryId, CategorySettings, Matched};
 use crate::certificate::{self, CertificateId, TrustedCertificate};
-use crate::download::{Download, Event, Outcome, Placement};
+use crate::download::{Download, Event, Outcome, Persist, Placement};
 use crate::error::Error;
 use crate::filename::{self, Existing};
 use crate::id::{IdGenerator, JobId};
@@ -700,6 +700,12 @@ enum Internal {
         id: JobId,
         waiting: bool,
     },
+    /// A run asks for the job to be saved as it is now, and waits for the
+    /// commit (`Download::persist`).
+    Persist {
+        id: JobId,
+        reply: oneshot::Sender<Result<(), Error>>,
+    },
 }
 
 /// Why a running job is being stopped. Later variants win: a user's pause or
@@ -1151,6 +1157,13 @@ impl<B: Backend> Actor<B> {
                 if waiting && self.shutdown.is_none() {
                     self.start_job(id);
                 }
+            }
+            Internal::Persist { id, reply } => {
+                let saved = match self.record(id) {
+                    Some(record) => self.store.write(Write::Save(Box::new(record))).await,
+                    None => Ok(()),
+                };
+                let _ = reply.send(saved);
             }
             Internal::Bandwidth { id, waiting } => {
                 // Not saved: it only means something while the job runs.
@@ -2706,6 +2719,17 @@ impl<B: Backend> Actor<B> {
         download.placement = placement;
         download.existing = job.existing.unwrap_or(self.settings.existing);
         download.trusted = trusted;
+        let persisting = self.internal.clone();
+        download.persist = Some(Persist::new(move || {
+            let internal = persisting.clone();
+            async move {
+                let (reply, saved) = oneshot::channel();
+                internal
+                    .send(Internal::Persist { id, reply })
+                    .map_err(|_| Error::ManagerStopped)?;
+                saved.await.map_err(|_| Error::ManagerStopped)?
+            }
+        }));
         let backend = Arc::clone(&self.backend);
         let internal = self.internal.clone();
         // The job's speed budget lives as long as the task does.
@@ -2771,6 +2795,7 @@ impl<B: Backend> Actor<B> {
         job.waiting_for_bandwidth = false;
         job.download = *download;
         job.download.placement = None;
+        job.download.persist = None;
         let stop = task.as_ref().and_then(|t| t.stop);
         // The file couldn't be written or synced as it stopped (disk full, a
         // drive gone): the pause asked for still happens, but says why, and

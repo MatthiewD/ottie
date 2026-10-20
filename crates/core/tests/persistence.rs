@@ -538,3 +538,37 @@ async fn a_change_that_cant_be_saved_isnt_made() {
     let ids: Vec<JobId> = manager.list().await.unwrap().iter().map(|j| j.id).collect();
     assert_eq!(ids, [kept]);
 }
+
+#[tokio::test]
+async fn a_new_plan_is_saved_before_the_file_takes_its_full_size() {
+    let s = setup().await;
+    let manager = s
+        .launch_with(HttpConfig {
+            connections: 4,
+            min_split: 64 * 1024,
+            ..HttpConfig::default()
+        })
+        .await;
+    let id = s.add_later(&manager).await.unwrap();
+
+    // Its plan can't be saved: it must not preallocate the file, or a crash
+    // could leave the old map over it.
+    writes_fail(&s.db, "jobs", &SAVING);
+    let now = JobChange {
+        start_at: Some(None),
+        ..JobChange::default()
+    };
+    manager.change_job(id, now).await.unwrap();
+    let failed = wait_until(&manager, id, JobState::Failed).await;
+    assert!(
+        failed
+            .problem
+            .as_ref()
+            .unwrap()
+            .to_string()
+            .contains("database"),
+        "{:?}",
+        failed.problem
+    );
+    assert_eq!(s.part_len(), 0, "the file never took its full size");
+}

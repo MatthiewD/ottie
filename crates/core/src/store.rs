@@ -1040,6 +1040,7 @@ fn record_from_row(row: &Row) -> rusqlite::Result<Result<JobRecord, String>> {
             referrer: row.get(29)?,
             user_agent: row.get(30)?,
         },
+        persist: None,
     };
     Ok(Ok(JobRecord {
         id,

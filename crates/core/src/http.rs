@@ -168,12 +168,16 @@ pub(crate) async fn run_in(
             return single(&env.common(), body, file, dl, &name, &mut on_event).await;
         };
 
+        dl.segments = segmented::plan(total, config);
+        started(dl, &name, &mut on_event);
+        // The database has the new plan before the file has its full length:
+        // a crash in between would leave the old map over a reset file, and
+        // its finished ranges would never be fetched again (0059).
+        transfer::persisted(dl).await?;
         // Full size up front, so every connection can write at its offset
         // and a later resume can tell from the length that the file is intact.
         file.set_len(total).await?;
         drop(file);
-        dl.segments = segmented::plan(total, config);
-        started(dl, &name, &mut on_event);
         let part = dl.dest_dir.join(filename::part_name(&name));
         let first = Some(Body::Http(response));
         let source = env.source(dl);

@@ -140,6 +140,15 @@ pub(crate) async fn restarting(
     Ok(())
 }
 
+/// Waits until the database has the job as it is now, when a manager runs
+/// it (`Download::persist`); else there's nothing to wait for.
+pub(crate) async fn persisted(dl: &Download) -> Result<(), Error> {
+    match &dl.persist {
+        Some(persist) => persist.saved().await,
+        None => Ok(()),
+    }
+}
+
 pub(crate) fn started(dl: &Download, name: &str, on_event: &mut impl FnMut(Event)) {
     on_event(Event::Started {
         file_name: name.to_owned(),

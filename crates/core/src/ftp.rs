@@ -624,11 +624,12 @@ async fn transfer(
             tracing::debug!(%name, "one connection");
             return single(env, first, file, dl, &name, on_event).await;
         };
-        // Full size up front, as for HTTP (see http.rs).
-        file.set_len(total).await?;
-        drop(file);
         dl.segments = segmented::plan(total, env.config);
         started(dl, &name, on_event);
+        // The plan saved first, then full size up front, as for HTTP.
+        transfer::persisted(dl).await?;
+        file.set_len(total).await?;
+        drop(file);
         let part = dl.dest_dir.join(filename::part_name(&name));
         let source = Source::Ftp(Arc::clone(link));
         match segmented::run(env, source, dl, &part, Some(first), on_event).await? {

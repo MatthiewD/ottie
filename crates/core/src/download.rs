@@ -1,6 +1,9 @@
 use std::collections::BTreeMap;
 use std::fmt;
+use std::future::Future;
 use std::path::{Path, PathBuf};
+use std::pin::Pin;
+use std::sync::Arc;
 
 use reqwest::Url;
 use reqwest::header::{COOKIE, HeaderMap, HeaderName, HeaderValue, REFERER, USER_AGENT};
@@ -46,6 +49,46 @@ pub struct Download {
     /// What the browser sent with it, when the extension handed it over
     /// (docs/decisions/0055). Saved.
     pub headers: RequestHeaders,
+    /// Set by the manager for each run: saves the job as it is now, and
+    /// waits for the commit. Not saved.
+    pub(crate) persist: Option<Persist>,
+}
+
+/// Saves the job now and waits until the database has it: a run asks before
+/// it preallocates a file for a new plan, so the database never holds an
+/// old map beside a file reset under it (docs/decisions/0059). Not part of
+/// what a download is: any two are equal.
+#[derive(Clone)]
+pub(crate) struct Persist(Arc<dyn Fn() -> Saving + Send + Sync>);
+
+/// A save under way, until it's committed.
+type Saving = Pin<Box<dyn Future<Output = Result<(), Error>> + Send>>;
+
+impl Persist {
+    pub(crate) fn new<F>(save: impl Fn() -> F + Send + Sync + 'static) -> Persist
+    where
+        F: Future<Output = Result<(), Error>> + Send + 'static,
+    {
+        Persist(Arc::new(move || Box::pin(save())))
+    }
+
+    pub(crate) async fn saved(&self) -> Result<(), Error> {
+        (self.0)().await
+    }
+}
+
+impl PartialEq for Persist {
+    fn eq(&self, _: &Persist) -> bool {
+        true
+    }
+}
+
+impl Eq for Persist {}
+
+impl fmt::Debug for Persist {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str("Persist")
+    }
 }
 
 /// What a browser sent with a download it handed over (docs/decisions/0055):
@@ -175,6 +218,7 @@ impl Download {
             existing: Existing::default(),
             trusted: Vec::new(),
             headers: RequestHeaders::default(),
+            persist: None,
         })
     }
 
