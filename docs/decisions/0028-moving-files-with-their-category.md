@@ -13,7 +13,7 @@ Accepted 2026-10-13. Changes what `docs/decisions/0011` said about moving a job 
 
 **How it moves:**
 - The new name is reserved as a `.part.ottie` in the new folder (atomic, like a new download), and the file is renamed onto it. A finished file then gets its real name back.
-- **Between drives,** where a rename can't work, the file is copied, and the original is deleted only once the copy is complete. A failure or crash halfway leaves the original intact.
+- **Between drives,** where a rename can't work, the file is copied, and the original is deleted only once the copy is complete and synced to the disk (its folder too on Unix; added 2026-10-20). A failure, a crash or a power cut halfway leaves the original intact.
 - The move runs in a task of its own, so a long copy doesn't hold up the daemon. Meanwhile the download is `moving` (in the API and in its `changed` events), and the UI says "Moving to its new folder…". Pause, resume, cancel, remove and another move are refused with `jobMoving`.
 - `POST /jobs/{id}/category` answers once the file has moved. If it couldn't (disk full, no permission), the download stays in its old category and the request answers `moveFailed` with the reason.
 - **Shutdown** waits for moves under way. A running download that was stopping to move when Ottie quit keeps its old place and continues there next time.

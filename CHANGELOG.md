@@ -24,6 +24,7 @@ What changes in Ottie from one version to the next: new features, changes and fi
 - If a bug in Ottie stopped a download, pausing or cancelling it, and quitting Ottie, could wait forever. That download now fails with a message saying so, and everything else answers as usual.
 - A running download given a start time, or stopped by a time slot, that was then cleared or removed while it was still stopping, stayed "downloading" without downloading anything. It now goes back to the queue and starts again.
 - When the disk failed just as a download was paused, or as Ottie quit (disk full, a drive unplugged), the pause still seemed to work and nothing said what had gone wrong. The download is now paused with the disk's problem shown, and only what was really written counts.
+- A file moved to a category's folder on another drive is now written to that drive for sure before the original is deleted, so a power cut at that moment can't lose it.
 
 ### Security
 

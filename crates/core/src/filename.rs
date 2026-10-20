@@ -296,10 +296,23 @@ async fn move_file(source: &Path, target: &Path) -> io::Result<()> {
     }
 }
 
-/// The original goes only once the copy is complete, so a failure (or a
-/// crash) halfway leaves it intact.
+/// The original goes only once the copy is complete and on the disk
+/// (synced, and its folder too on Unix), so a failure, a crash or a power
+/// cut halfway leaves it intact.
 async fn copy_then_delete(source: &Path, target: &Path) -> io::Result<()> {
     fs::copy(source, target).await?;
+    // Write access: Windows syncs only a file open for writing.
+    OpenOptions::new()
+        .write(true)
+        .open(target)
+        .await?
+        .sync_all()
+        .await?;
+    #[cfg(unix)]
+    if let Some(folder) = target.parent() {
+        // Its entry in the folder, so the copy can be found after a crash.
+        File::open(folder).await?.sync_all().await?;
+    }
     fs::remove_file(source).await
 }
 
