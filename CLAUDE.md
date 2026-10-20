@@ -136,7 +136,8 @@ crates/ottie/      ottie: the binary  [exists]
   src/main.rs        the subcommands; its own tokio runtime (a Windows service hands its thread to the system first)
   src/serve.rs       `ottie serve`: logging (or a log file), folders, token, the data folder's lock (one daemon each, 0008),
                      database, General → Downloads folder
-                     (or --downloads-dir), axum::serve, graceful stop (also the Windows service's Stop)
+                     (or --downloads-dir), axum::serve, graceful stop (also the Windows service's Stop): the downloads
+                     stop at once while the API drains, 5 s at most
   src/open.rs        `ottie open`: browser on the UI, signed in (via a private redirect page); `ottie link`
   src/config.rs      folders (OS defaults / flags / OTTIE_* env / --system: the system service's), config.toml,
                      listen address

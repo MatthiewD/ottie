@@ -229,6 +229,59 @@ fn another_program_on_the_port_never_gets_the_token() {
 }
 
 #[test]
+fn a_request_that_never_ends_doesnt_keep_ottie_from_stopping() {
+    use std::io::{BufRead, BufReader, Write};
+
+    let dir = tempfile::tempdir().unwrap();
+    let port = free_port().to_string();
+    let mut child = ottie(dir.path())
+        .args(["serve", "--managed", "--port", &port])
+        .stdin(Stdio::piped())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .spawn()
+        .unwrap();
+    let stdin = child.stdin.take().unwrap();
+    let mut stdout = BufReader::new(child.stdout.take().unwrap());
+    let stderr = child.stderr.take().unwrap();
+    let mut running = Running(child);
+    let mut ready = String::new();
+    stdout.read_line(&mut ready).unwrap();
+    assert_eq!(ready.trim(), "ready");
+
+    // A download being added whose body never comes.
+    let token = std::fs::read_to_string(dir.path().join("config").join("token")).unwrap();
+    let mut stuck = std::net::TcpStream::connect(format!("127.0.0.1:{port}")).unwrap();
+    write!(
+        stuck,
+        "POST /api/v1/jobs HTTP/1.1\r\nHost: 127.0.0.1\r\nAuthorization: Bearer {}\r\n\
+         Content-Type: application/json\r\nContent-Length: 100\r\n\r\n{{",
+        token.trim()
+    )
+    .unwrap();
+    std::thread::sleep(Duration::from_millis(300));
+
+    drop(stdin);
+    let started = Instant::now();
+    let status = loop {
+        if let Some(status) = running.0.try_wait().unwrap() {
+            break status;
+        }
+        assert!(started.elapsed() < Duration::from_secs(15), "still running");
+        std::thread::sleep(Duration::from_millis(20));
+    };
+    assert!(status.success());
+    assert!(
+        started.elapsed() < Duration::from_secs(9),
+        "{:?}",
+        started.elapsed()
+    );
+    let logs = std::io::read_to_string(stderr).unwrap();
+    assert!(logs.contains("saving downloads"), "{logs}");
+    drop(stuck);
+}
+
+#[test]
 fn a_service_finds_why_it_stopped_in_its_log() {
     let dir = tempfile::tempdir().unwrap();
     let taken = std::net::TcpListener::bind("127.0.0.1:0").unwrap();

@@ -1,9 +1,11 @@
 //! `ottie serve`: the daemon.
 
 use std::fs::{self, File, OpenOptions};
+use std::future::IntoFuture;
 use std::io::IsTerminal;
 use std::path::{Path, PathBuf};
 use std::sync::Mutex;
+use std::time::Duration;
 
 use anyhow::{Context, Result};
 use clap::Args;
@@ -136,19 +138,38 @@ async fn serve(
     };
     let shutdown = CancellationToken::new();
     let app = ottie_api::router(manager.clone(), access, shutdown.clone(), ui);
-    axum::serve(listener, app)
-        .with_graceful_shutdown(async move {
-            stop_requested(parent_gone, stop).await;
-            // Close event streams, or the server would wait for them.
-            shutdown.cancel();
-        })
-        .await
-        .context("the API server failed")?;
+    let draining = shutdown.clone();
+    let server = axum::serve(listener, app)
+        // Also closes event streams, or the server would wait for them.
+        .with_graceful_shutdown(async move { draining.cancelled().await })
+        .into_future();
+    tokio::pin!(server);
+    tokio::select! {
+        served = &mut server => {
+            // It only ends by itself when it fails.
+            served.context("the API server failed")?;
+        }
+        () = stop_requested(parent_gone, stop) => {}
+    }
 
+    // The downloads stop at once, while the API finishes the requests under
+    // way, for at most `DRAIN`: a request that never ends (a body that never
+    // comes) can't keep the downloads running.
     tracing::info!("stopping: saving downloads");
-    manager.shutdown().await?;
+    shutdown.cancel();
+    let drained = async {
+        if tokio::time::timeout(DRAIN, &mut server).await.is_err() {
+            tracing::warn!("requests still open after {} s: closed", DRAIN.as_secs());
+        }
+    };
+    let (stopped, ()) = tokio::join!(manager.shutdown(), drained);
+    stopped?;
     Ok(())
 }
+
+/// How long requests under way may take to finish once Ottie stops. The
+/// desktop app waits longer for its daemon (`app/src/daemon.rs`).
+const DRAIN: Duration = Duration::from_secs(5);
 
 /// One daemon per data folder: another Ottie on another port (another
 /// `--port`, config.toml) must not resume the same downloads into the same
