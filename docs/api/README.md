@@ -245,6 +245,7 @@ To keep an up-to-date copy of the list:
 | `removed` | `id` | Drop the job |
 | `categoryChanged` / `categoryRemoved` | `category` / `id` | The same, for categories |
 | `viewChanged` / `viewRemoved` | `view` / `id` | The same, for saved views |
+| `slotChanged` / `slotRemoved` | `slot` / `id` | The same, for time slots (also when one starts or stops applying) |
 | `settingsChanged` | `settings` | Replace the settings: all of them, as they are now |
 | `resync` | | You fell behind and missed events: fetch the lists again |
 

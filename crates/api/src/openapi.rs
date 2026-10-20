@@ -1,6 +1,8 @@
 //! The OpenAPI description of the API (docs/decisions/0030). It's built from
-//! the same routes the server answers (`utoipa-axum`), so the two can't
-//! drift apart. The tests write it to `docs/api/openapi.json`; a running
+//! the same routes the server answers (`utoipa-axum`), so every route is in
+//! it. What each route says it answers (its error statuses) and which fields
+//! may be missing are written by hand in the annotations, and can still be
+//! wrong. The tests write it to `docs/api/openapi.json`; a running
 //! daemon serves it at `GET /api/v1/openapi.json`.
 
 use axum::Json;
