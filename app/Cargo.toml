@@ -48,6 +48,10 @@ tokio = { version = "1.53.2", features = ["io-util", "macros", "process", "sync"
 tokio-tungstenite = { version = "0.30.0", features = ["rustls-tls-native-roots"] }
 auto-launch = "0.6"
 
+[dev-dependencies]
+# A folder of its own for each test that writes files.
+tempfile = "3.27.0"
+
 [target.'cfg(windows)'.dependencies]
 # The taskbar's theme, for the tray icon's colour.
 windows-registry = "0.6.1"

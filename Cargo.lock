@@ -3542,6 +3542,7 @@ dependencies = [
  "tauri-plugin-notification",
  "tauri-plugin-opener",
  "tauri-plugin-single-instance",
+ "tempfile",
  "tokio",
  "tokio-tungstenite 0.30.0",
  "windows-registry",

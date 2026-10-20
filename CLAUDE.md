@@ -206,7 +206,8 @@ app/               ottie-app: Tauri 2 shell (desktop; Android later, then with c
                      desktop / set_startup / set_close_to_tray / set_watch_clipboard / set_copied /
                      set_local_daemon / set_notify / set_notify_failed / set_sounds / set_sound / play_sound /
                      set_language; the pages hear changes as the `desktop` event
-  src/config.rs      load/save the app's JSON settings files in its config folder
+  src/config.rs      load/save the app's JSON settings files in its config folder (written beside, synced, then renamed
+                     over; one it can't read is kept as `<name>.bad` before the defaults apply)
   src/files.rs       a download's file and folder (0045): commands open_file / show_in_folder take a job
                      ID, ask the daemon where it is; a program asks first in a native dialog
   src/player.rs      "Play with" (0031): system's player via a .m3u, browser, or a picked program;
