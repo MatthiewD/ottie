@@ -10,6 +10,7 @@ What changes in Ottie from one version to the next: new features, changes and fi
 - A link with a sequence spanning every possible number, like `[0-18446744073709551615]`, is refused as too many links instead of giving no download at all.
 - When a time slot for all downloads lets running ones finish and another, for one category, stops them at once, that category's running downloads now stop.
 - A download that keeps failing no longer gives its place to one whose file is being moved to another folder: it took the place straight back and tried again without waiting.
+- `ottie service install` with a relative data folder (`--data-dir state`) now writes the service's log in that folder. On Windows and macOS it went to the folder the service started in, or the service couldn't start.
 
 ### Security
 

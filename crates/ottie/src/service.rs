@@ -131,7 +131,8 @@ fn prepare(args: InstallArgs) -> Result<Install> {
     Ok(Install {
         system: dirs.system,
         at_boot: args.at_boot,
-        log: dirs.data.join("ottie.log"),
+        // As absolute as `--data-dir`: the service may start in another folder.
+        log: absolute(&dirs.data)?.join("ottie.log"),
         exe: std::env::current_exe().context("can't find where ottie is")?,
         args: serve,
         addr,
@@ -273,6 +274,25 @@ mod tests {
         assert_eq!(
             describe("For you", Some("task at sign-in"), None),
             "For you: installed (task at sign-in)"
+        );
+    }
+
+    #[test]
+    fn a_relative_data_folder_gives_an_absolute_log() {
+        let install = prepare(InstallArgs {
+            dirs: DirArgs {
+                config_dir: Some("state".into()),
+                data_dir: Some("state".into()),
+                system: false,
+            },
+            downloads_dir: None,
+            at_boot: false,
+        })
+        .unwrap();
+        assert!(install.log.is_absolute(), "{}", install.log.display());
+        assert_eq!(
+            install.log,
+            absolute(Path::new("state")).unwrap().join("ottie.log")
         );
     }
 
