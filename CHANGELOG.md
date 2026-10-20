@@ -25,7 +25,7 @@ What changes in Ottie from one version to the next: new features, changes and fi
 
 ## [0.1.0-experimental] - 2026-10-17
 
-The initial release, for testing. What Ottie does is in the [README](https://github.com/Matfalco/ottie#features).
+The initial release, for testing. What Ottie does is in the [README](https://github.com/MatthiewD/ottie#features).
 
-[Unreleased]: https://github.com/Matfalco/ottie/compare/v0.1.0-experimental...HEAD
-[0.1.0-experimental]: https://github.com/Matfalco/ottie/releases/tag/v0.1.0-experimental
+[Unreleased]: https://github.com/MatthiewD/ottie/compare/v0.1.0-experimental...HEAD
+[0.1.0-experimental]: https://github.com/MatthiewD/ottie/releases/tag/v0.1.0-experimental
