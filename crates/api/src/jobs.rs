@@ -3,15 +3,15 @@
 //! which links some text holds.
 
 use axum::Json;
+use axum::extract::State;
 use axum::extract::rejection::JsonRejection;
-use axum::extract::{Path, State};
 use axum::http::StatusCode;
 use ottie_core::{CategoryId, JobId, NewJob, RequestHeaders};
 
 use crate::AppState;
 use crate::access::{Caller, Folders};
 use crate::categories::{absolute_folder, parse_url};
-use crate::error::Failure;
+use crate::error::{Failure, Param};
 use crate::types::{
     AddJob, AddJobs, Added, AddedJobs, ApiError, Job, JobChange, MoveJob, Preview, PreviewLinks,
     RefusedJob, ReorderJobs, from_millis,
@@ -45,7 +45,7 @@ pub(crate) async fn list(State(state): State<AppState>) -> Result<Json<Vec<Job>>
 )]
 pub(crate) async fn get(
     State(state): State<AppState>,
-    Path(id): Path<String>,
+    Param(id): Param<String>,
 ) -> Result<Json<Job>, Failure> {
     let job = state.manager.job(id.parse::<JobId>()?).await?;
     Ok(Json(job.into()))
@@ -238,7 +238,7 @@ pub(crate) async fn preview(
 )]
 pub(crate) async fn pause(
     State(state): State<AppState>,
-    Path(id): Path<String>,
+    Param(id): Param<String>,
 ) -> Result<StatusCode, Failure> {
     state.manager.pause(id.parse::<JobId>()?).await?;
     Ok(StatusCode::NO_CONTENT)
@@ -261,7 +261,7 @@ pub(crate) async fn pause(
 )]
 pub(crate) async fn resume(
     State(state): State<AppState>,
-    Path(id): Path<String>,
+    Param(id): Param<String>,
 ) -> Result<StatusCode, Failure> {
     state.manager.resume(id.parse::<JobId>()?).await?;
     Ok(StatusCode::NO_CONTENT)
@@ -284,7 +284,7 @@ pub(crate) async fn resume(
 )]
 pub(crate) async fn cancel(
     State(state): State<AppState>,
-    Path(id): Path<String>,
+    Param(id): Param<String>,
 ) -> Result<StatusCode, Failure> {
     state.manager.cancel(id.parse::<JobId>()?).await?;
     Ok(StatusCode::NO_CONTENT)
@@ -308,7 +308,7 @@ pub(crate) async fn cancel(
 )]
 pub(crate) async fn remove(
     State(state): State<AppState>,
-    Path(id): Path<String>,
+    Param(id): Param<String>,
 ) -> Result<StatusCode, Failure> {
     state.manager.remove(id.parse::<JobId>()?).await?;
     Ok(StatusCode::NO_CONTENT)
@@ -337,7 +337,7 @@ pub(crate) async fn remove(
 )]
 pub(crate) async fn change(
     State(state): State<AppState>,
-    Path(id): Path<String>,
+    Param(id): Param<String>,
     body: Result<Json<JobChange>, JsonRejection>,
 ) -> Result<StatusCode, Failure> {
     let Json(change) = body?;
@@ -405,7 +405,7 @@ pub(crate) async fn reorder(
 )]
 pub(crate) async fn set_category(
     State(state): State<AppState>,
-    Path(id): Path<String>,
+    Param(id): Param<String>,
     body: Result<Json<MoveJob>, JsonRejection>,
 ) -> Result<StatusCode, Failure> {
     let Json(body) = body?;

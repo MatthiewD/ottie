@@ -1317,6 +1317,9 @@ pub enum Reason {
     /// A device's name has 1 to 60 characters.
     InvalidDeviceName,
     NoSuchEndpoint,
+    /// A part of the path isn't what it should be (a number ID that isn't
+    /// a number); `error` says what's wrong.
+    InvalidPath,
     /// The body isn't the JSON expected; `error` says what's wrong.
     InvalidBody,
     InvalidUrl,

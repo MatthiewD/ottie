@@ -1680,6 +1680,49 @@ async fn a_play_link_streams_a_download_as_it_arrives() {
 }
 
 #[tokio::test]
+async fn every_refusal_is_json_with_a_code() {
+    let d = start().await;
+    let code = |response: reqwest::Response| async move {
+        let status = response.status();
+        let body: serde_json::Value = response.json().await.expect("a JSON body");
+        (status, body["code"].as_str().unwrap_or_default().to_owned())
+    };
+
+    // An ID that isn't a number.
+    let path = d.url("/categories/not-a-number");
+    let response = d.client.delete(path).bearer_auth(TOKEN).send().await;
+    let (status, refused) = code(response.unwrap()).await;
+    assert_eq!(
+        (status, refused.as_str()),
+        (StatusCode::BAD_REQUEST, "invalidPath")
+    );
+
+    // A body that isn't sent as JSON.
+    let response = d
+        .post("/jobs")
+        .body(r#"{"url": "https://example.com/a"}"#)
+        .send()
+        .await;
+    let (status, refused) = code(response.unwrap()).await;
+    assert_eq!(
+        (status, refused.as_str()),
+        (StatusCode::UNSUPPORTED_MEDIA_TYPE, "invalidBody")
+    );
+
+    // Both are in the description.
+    let spec = serde_json::to_value(ottie_api::openapi()).unwrap();
+    let add = &spec["paths"]["/api/v1/jobs"]["post"]["responses"];
+    assert!(add["413"].is_object() && add["415"].is_object());
+    let remove = &spec["paths"]["/api/v1/categories/{id}"]["delete"]["responses"]["400"];
+    assert!(
+        remove["description"]
+            .as_str()
+            .unwrap()
+            .contains("invalidPath")
+    );
+}
+
+#[tokio::test]
 async fn the_api_describes_itself() {
     let d = start().await;
     let anonymous = d.client.get(d.url("/openapi.json")).send().await.unwrap();

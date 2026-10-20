@@ -16,7 +16,7 @@ use std::time::SystemTime;
 
 use axum::Json;
 use axum::extract::rejection::JsonRejection;
-use axum::extract::{FromRequestParts, Path as UrlPath, State};
+use axum::extract::{FromRequestParts, State};
 use axum::http::StatusCode;
 use axum::http::request::Parts;
 use ottie_core::Manager;
@@ -26,7 +26,7 @@ use tokio_util::sync::CancellationToken;
 
 use crate::AppState;
 use crate::auth::Token;
-use crate::error::Failure;
+use crate::error::{Failure, Param};
 use crate::types::{
     AccessInfo, AddDevice, AddedDevice, AllowedFolders, ApiError, Device, FolderList, Reason,
     millis,
@@ -664,7 +664,7 @@ pub(crate) async fn add_device(
 pub(crate) async fn remove_device(
     State(state): State<AppState>,
     caller: Caller,
-    UrlPath(id): UrlPath<u32>,
+    Param(id): Param<u32>,
 ) -> Result<StatusCode, Failure> {
     caller.must_be_owner()?;
     let access = &state.access;

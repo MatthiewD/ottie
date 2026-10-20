@@ -275,10 +275,12 @@ Show users a message chosen by `code` (translated, with the extra fields filled 
 
 | Status | Means | Examples |
 |---|---|---|
-| 400 | Something in the request is wrong | `invalidUrl`, `relativeFolder`, `outOfRange` |
+| 400 | Something in the request is wrong | `invalidUrl`, `relativeFolder`, `outOfRange`; `invalidPath` (`/categories/abc`: a number ID that isn't one); `invalidBody` (not JSON at all) |
 | 401 | No token, or the wrong one | `unauthorized` |
 | 404 | No such thing | `jobNotFound`, `categoryNotFound`, `noSuchEndpoint` |
 | 409 | Not possible right now | `invalidTransition` (resuming a finished download), `jobMoving` |
+| 413 | The body is too large (2 MB; 64 MB for `POST /jobs/batch` and `/jobs/preview`) | `invalidBody` |
+| 415 | The body isn't sent as `Content-Type: application/json` | `invalidBody` |
 | 422 | The body isn't the JSON expected | `invalidBody` |
 | 503 | The daemon is shutting down | `stopping` |
 

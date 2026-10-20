@@ -3,13 +3,13 @@
 //! the host and fingerprint to post here; resuming it then connects.
 
 use axum::Json;
+use axum::extract::State;
 use axum::extract::rejection::JsonRejection;
-use axum::extract::{Path, State};
 use axum::http::StatusCode;
 use ottie_core::CertificateId;
 
 use crate::AppState;
-use crate::error::Failure;
+use crate::error::{Failure, Param};
 use crate::types::{ApiError, TrustCertificate, TrustedCertificate};
 
 /// Every certificate trusted by hand, oldest first.
@@ -72,7 +72,7 @@ pub(crate) async fn trust(
 )]
 pub(crate) async fn distrust(
     State(state): State<AppState>,
-    Path(id): Path<u32>,
+    Param(id): Param<u32>,
 ) -> Result<StatusCode, Failure> {
     state
         .manager

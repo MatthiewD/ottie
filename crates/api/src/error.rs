@@ -3,9 +3,12 @@
 
 use axum::Json;
 use axum::extract::rejection::JsonRejection;
+use axum::extract::{FromRequestParts, Path};
 use axum::http::StatusCode;
+use axum::http::request::Parts;
 use axum::response::{IntoResponse, Response};
 use ottie_core::Error;
+use serde::de::DeserializeOwned;
 
 use crate::types::{ApiError, Reason};
 
@@ -174,6 +177,30 @@ impl From<JsonRejection> for Failure {
             Reason::InvalidBody,
             rejection.body_text(),
         )
+    }
+}
+
+/// A path's parameters (`/categories/{id}`), as axum's `Path` reads them,
+/// but refused as every other request is: JSON with a code (`invalidPath`),
+/// not axum's plain text.
+pub(crate) struct Param<T>(pub T);
+
+impl<T, S> FromRequestParts<S> for Param<T>
+where
+    T: DeserializeOwned + Send,
+    S: Send + Sync,
+{
+    type Rejection = Failure;
+
+    async fn from_request_parts(parts: &mut Parts, state: &S) -> Result<Self, Failure> {
+        match Path::<T>::from_request_parts(parts, state).await {
+            Ok(Path(value)) => Ok(Param(value)),
+            Err(rejection) => Err(Failure::new(
+                rejection.status(),
+                Reason::InvalidPath,
+                rejection.body_text(),
+            )),
+        }
     }
 }
 

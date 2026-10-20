@@ -2,13 +2,13 @@
 //! (docs/decisions/0040).
 
 use axum::Json;
+use axum::extract::State;
 use axum::extract::rejection::JsonRejection;
-use axum::extract::{Path, State};
 use axum::http::StatusCode;
 use ottie_core::{SlotId, SlotSettings};
 
 use crate::AppState;
-use crate::error::Failure;
+use crate::error::{Failure, Param};
 use crate::settings::{MAX_CONCURRENT, SPEED_LIMIT, in_range};
 use crate::types::{AddedSlot, ApiError, Reason, ReorderSlots, Slot, SlotBody, SlotList};
 
@@ -69,7 +69,7 @@ pub(crate) async fn add(
 )]
 pub(crate) async fn update(
     State(state): State<AppState>,
-    Path(id): Path<u32>,
+    Param(id): Param<u32>,
     body: Result<Json<SlotBody>, JsonRejection>,
 ) -> Result<StatusCode, Failure> {
     let Json(body) = body?;
@@ -94,7 +94,7 @@ pub(crate) async fn update(
 )]
 pub(crate) async fn remove(
     State(state): State<AppState>,
-    Path(id): Path<u32>,
+    Param(id): Param<u32>,
 ) -> Result<StatusCode, Failure> {
     state.manager.remove_slot(SlotId(id)).await?;
     Ok(StatusCode::NO_CONTENT)

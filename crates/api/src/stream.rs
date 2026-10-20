@@ -13,7 +13,7 @@ use std::time::{Duration, Instant};
 
 use axum::Json;
 use axum::body::Body;
-use axum::extract::{Path, State};
+use axum::extract::State;
 use axum::http::header::{
     ACCEPT_RANGES, CONTENT_LENGTH, CONTENT_RANGE, CONTENT_SECURITY_POLICY, CONTENT_TYPE, HeaderMap,
     RANGE, X_CONTENT_TYPE_OPTIONS,
@@ -24,7 +24,7 @@ use ottie_core::{Error, JobId, Reader, Url};
 use tokio_util::sync::CancellationToken;
 
 use crate::AppState;
-use crate::error::Failure;
+use crate::error::{Failure, Param};
 use crate::types::{ApiError, StreamLink};
 
 /// A link stays valid this long after it was last used.
@@ -104,7 +104,7 @@ fn random_ticket() -> Result<String, Failure> {
 )]
 pub(crate) async fn link(
     State(state): State<AppState>,
-    Path(id): Path<String>,
+    Param(id): Param<String>,
 ) -> Result<Json<StreamLink>, Failure> {
     let id = id.parse::<JobId>()?;
     let job = state.manager.job(id).await?;
@@ -137,7 +137,7 @@ pub(crate) async fn link(
 )]
 pub(crate) async fn serve(
     State(state): State<AppState>,
-    Path(ticket): Path<String>,
+    Param(ticket): Param<String>,
     headers: HeaderMap,
 ) -> Result<Response, Failure> {
     play(state, &ticket, &headers).await
@@ -169,7 +169,7 @@ pub(crate) async fn serve(
 )]
 pub(crate) async fn serve_named(
     State(state): State<AppState>,
-    Path((ticket, _name)): Path<(String, String)>,
+    Param((ticket, _name)): Param<(String, String)>,
     headers: HeaderMap,
 ) -> Result<Response, Failure> {
     play(state, &ticket, &headers).await

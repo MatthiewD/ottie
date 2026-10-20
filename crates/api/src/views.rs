@@ -1,13 +1,13 @@
 //! `/views`: the saved views of the downloads list (docs/decisions/0026).
 
 use axum::Json;
+use axum::extract::State;
 use axum::extract::rejection::JsonRejection;
-use axum::extract::{Path, State};
 use axum::http::StatusCode;
 use ottie_core::ViewId;
 
 use crate::AppState;
-use crate::error::Failure;
+use crate::error::{Failure, Param};
 use crate::types::{AddedView, ApiError, View, ViewBody};
 
 /// Every saved view, oldest first.
@@ -64,7 +64,7 @@ pub(crate) async fn add(
 )]
 pub(crate) async fn update(
     State(state): State<AppState>,
-    Path(id): Path<u32>,
+    Param(id): Param<u32>,
     body: Result<Json<ViewBody>, JsonRejection>,
 ) -> Result<StatusCode, Failure> {
     let Json(body) = body?;
@@ -86,7 +86,7 @@ pub(crate) async fn update(
 )]
 pub(crate) async fn remove(
     State(state): State<AppState>,
-    Path(id): Path<u32>,
+    Param(id): Param<u32>,
 ) -> Result<StatusCode, Failure> {
     state.manager.remove_view(ViewId(id)).await?;
     Ok(StatusCode::NO_CONTENT)

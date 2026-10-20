@@ -96,6 +96,28 @@ pub(crate) fn describe(mut api: utoipa::openapi::OpenApi) -> utoipa::openapi::Op
                     });
                 }
             }
+            // A body that axum can't take as JSON (error.rs).
+            if operation.request_body.is_some() {
+                responses
+                    .entry("413".into())
+                    .or_insert_with(|| refusal("`invalidBody`: the body is too large"));
+                responses
+                    .entry("415".into())
+                    .or_insert_with(|| refusal("`invalidBody`: not sent as `application/json`"));
+            }
+            // A parameter in the path that can't be read (`error::Param`).
+            if path.contains('{') {
+                const BAD_PATH: &str = "`invalidPath`: a parameter in the path can't be read";
+                match responses.get_mut("400") {
+                    Some(RefOr::T(response)) => {
+                        response.description = format!("{}; or {BAD_PATH}", response.description);
+                    }
+                    Some(RefOr::Ref(_)) => {}
+                    None => {
+                        responses.insert("400".into(), refusal(BAD_PATH));
+                    }
+                }
+            }
             responses
                 .entry("503".into())
                 .or_insert_with(|| refusal("`stopping`: the daemon is shutting down"));

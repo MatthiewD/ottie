@@ -167,6 +167,26 @@
               }
             }
           },
+          "413": {
+            "description": "`invalidBody`: the body is too large",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "415": {
+            "description": "`invalidBody`: not sent as `application/json`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
           "422": {
             "description": "`invalidBody`",
             "content": {
@@ -223,6 +243,16 @@
         "responses": {
           "204": {
             "description": "Removed"
+          },
+          "400": {
+            "description": "`invalidPath`: a parameter in the path can't be read",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
           },
           "401": {
             "description": "`unauthorized`: no token, or the wrong one",
@@ -327,6 +357,26 @@
           },
           "403": {
             "description": "`ownerOnly`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "413": {
+            "description": "`invalidBody`: the body is too large",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "415": {
+            "description": "`invalidBody`: not sent as `application/json`",
             "content": {
               "application/json": {
                 "schema": {
@@ -478,6 +528,26 @@
               }
             }
           },
+          "413": {
+            "description": "`invalidBody`: the body is too large",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "415": {
+            "description": "`invalidBody`: not sent as `application/json`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
           "422": {
             "description": "`invalidBody`",
             "content": {
@@ -559,6 +629,26 @@
               }
             }
           },
+          "413": {
+            "description": "`invalidBody`: the body is too large",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "415": {
+            "description": "`invalidBody`: not sent as `application/json`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
           "422": {
             "description": "`invalidBody`",
             "content": {
@@ -617,7 +707,7 @@
             "description": "Replaced"
           },
           "400": {
-            "description": "`invalidCategoryName`, `invalidExtension`, `relativeFolder`, `nonUtf8Path` or `outOfRange` (`speedLimit`)",
+            "description": "`invalidCategoryName`, `invalidExtension`, `relativeFolder`, `nonUtf8Path` or `outOfRange` (`speedLimit`); or `invalidPath`: a parameter in the path can't be read",
             "content": {
               "application/json": {
                 "schema": {
@@ -658,6 +748,26 @@
           },
           "409": {
             "description": "`categoryNameTaken` or `extensionTaken`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "413": {
+            "description": "`invalidBody`: the body is too large",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "415": {
+            "description": "`invalidBody`: not sent as `application/json`",
             "content": {
               "application/json": {
                 "schema": {
@@ -720,6 +830,16 @@
         "responses": {
           "204": {
             "description": "Removed"
+          },
+          "400": {
+            "description": "`invalidPath`: a parameter in the path can't be read",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
           },
           "401": {
             "description": "`unauthorized`: no token, or the wrong one",
@@ -884,6 +1004,26 @@
               }
             }
           },
+          "413": {
+            "description": "`invalidBody`: the body is too large",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "415": {
+            "description": "`invalidBody`: not sent as `application/json`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
           "422": {
             "description": "`invalidBody`",
             "content": {
@@ -940,6 +1080,16 @@
         "responses": {
           "204": {
             "description": "No longer trusted"
+          },
+          "400": {
+            "description": "`invalidPath`: a parameter in the path can't be read",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
           },
           "401": {
             "description": "`unauthorized`: no token, or the wrong one",
@@ -1065,6 +1215,26 @@
           },
           "400": {
             "description": "`invalidBody`: the nonce isn't 32 to 128 hex digits",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "413": {
+            "description": "`invalidBody`: the body is too large",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "415": {
+            "description": "`invalidBody`: not sent as `application/json`",
             "content": {
               "application/json": {
                 "schema": {
@@ -1209,6 +1379,26 @@
               }
             }
           },
+          "413": {
+            "description": "`invalidBody`: the body is too large",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "415": {
+            "description": "`invalidBody`: not sent as `application/json`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
           "422": {
             "description": "`invalidBody`",
             "content": {
@@ -1292,6 +1482,26 @@
           },
           "403": {
             "description": "`readOnly`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "413": {
+            "description": "`invalidBody`: the body is too large",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "415": {
+            "description": "`invalidBody`: not sent as `application/json`",
             "content": {
               "application/json": {
                 "schema": {
@@ -1391,6 +1601,26 @@
               }
             }
           },
+          "413": {
+            "description": "`invalidBody`: the body is too large",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "415": {
+            "description": "`invalidBody`: not sent as `application/json`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
           "422": {
             "description": "`invalidBody`",
             "content": {
@@ -1475,6 +1705,26 @@
               }
             }
           },
+          "413": {
+            "description": "`invalidBody`: the body is too large",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "415": {
+            "description": "`invalidBody`: not sent as `application/json`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
           "422": {
             "description": "`invalidBody`",
             "content": {
@@ -1538,7 +1788,7 @@
             }
           },
           "400": {
-            "description": "`invalidJobId`",
+            "description": "`invalidJobId`; or `invalidPath`: a parameter in the path can't be read",
             "content": {
               "application/json": {
                 "schema": {
@@ -1601,7 +1851,7 @@
             "description": "Removed"
           },
           "400": {
-            "description": "`invalidJobId`",
+            "description": "`invalidJobId`; or `invalidPath`: a parameter in the path can't be read",
             "content": {
               "application/json": {
                 "schema": {
@@ -1704,7 +1954,7 @@
             "description": "Changed"
           },
           "400": {
-            "description": "`invalidJobId`, `stopBeforeStart` or `outOfRange` (`speedLimit`, `startAt`, `stopAt`)",
+            "description": "`invalidJobId`, `stopBeforeStart` or `outOfRange` (`speedLimit`, `startAt`, `stopAt`); or `invalidPath`: a parameter in the path can't be read",
             "content": {
               "application/json": {
                 "schema": {
@@ -1745,6 +1995,26 @@
           },
           "409": {
             "description": "Times for a finished download (`invalidTransition`), or `jobMoving`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "413": {
+            "description": "`invalidBody`: the body is too large",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "415": {
+            "description": "`invalidBody`: not sent as `application/json`",
             "content": {
               "application/json": {
                 "schema": {
@@ -1809,7 +2079,7 @@
             "description": "Cancelled"
           },
           "400": {
-            "description": "`invalidJobId`",
+            "description": "`invalidJobId`; or `invalidPath`: a parameter in the path can't be read",
             "content": {
               "application/json": {
                 "schema": {
@@ -1914,7 +2184,7 @@
             "description": "Moved"
           },
           "400": {
-            "description": "`invalidJobId`",
+            "description": "`invalidJobId`; or `invalidPath`: a parameter in the path can't be read",
             "content": {
               "application/json": {
                 "schema": {
@@ -1955,6 +2225,26 @@
           },
           "409": {
             "description": "`jobMoving`, or `cannotMoveWhileRunning` (it can't resume)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "413": {
+            "description": "`invalidBody`: the body is too large",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "415": {
+            "description": "`invalidBody`: not sent as `application/json`",
             "content": {
               "application/json": {
                 "schema": {
@@ -2019,7 +2309,7 @@
             "description": "Paused"
           },
           "400": {
-            "description": "`invalidJobId`",
+            "description": "`invalidJobId`; or `invalidPath`: a parameter in the path can't be read",
             "content": {
               "application/json": {
                 "schema": {
@@ -2114,7 +2404,7 @@
             "description": "Queued again"
           },
           "400": {
-            "description": "`invalidJobId`",
+            "description": "`invalidJobId`; or `invalidPath`: a parameter in the path can't be read",
             "content": {
               "application/json": {
                 "schema": {
@@ -2216,7 +2506,7 @@
             }
           },
           "400": {
-            "description": "`invalidJobId`",
+            "description": "`invalidJobId`; or `invalidPath`: a parameter in the path can't be read",
             "content": {
               "application/json": {
                 "schema": {
@@ -2385,6 +2675,26 @@
               }
             }
           },
+          "413": {
+            "description": "`invalidBody`: the body is too large",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "415": {
+            "description": "`invalidBody`: not sent as `application/json`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
           "422": {
             "description": "`invalidBody`",
             "content": {
@@ -2525,6 +2835,26 @@
               }
             }
           },
+          "413": {
+            "description": "`invalidBody`: the body is too large",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "415": {
+            "description": "`invalidBody`: not sent as `application/json`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
           "422": {
             "description": "`invalidBody`",
             "content": {
@@ -2609,6 +2939,26 @@
               }
             }
           },
+          "413": {
+            "description": "`invalidBody`: the body is too large",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "415": {
+            "description": "`invalidBody`: not sent as `application/json`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
           "422": {
             "description": "`invalidBody`",
             "content": {
@@ -2677,7 +3027,7 @@
             "description": "Replaced"
           },
           "400": {
-            "description": "`slotWithoutDays`, `slotWithoutEffect`, `invalidTime` or `outOfRange` (`maxConcurrent`, `speedLimit`)",
+            "description": "`slotWithoutDays`, `slotWithoutEffect`, `invalidTime` or `outOfRange` (`maxConcurrent`, `speedLimit`); or `invalidPath`: a parameter in the path can't be read",
             "content": {
               "application/json": {
                 "schema": {
@@ -2708,6 +3058,26 @@
           },
           "404": {
             "description": "`slotNotFound` or `categoryNotFound`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "413": {
+            "description": "`invalidBody`: the body is too large",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "415": {
+            "description": "`invalidBody`: not sent as `application/json`",
             "content": {
               "application/json": {
                 "schema": {
@@ -2770,6 +3140,16 @@
         "responses": {
           "204": {
             "description": "Removed"
+          },
+          "400": {
+            "description": "`invalidPath`: a parameter in the path can't be read",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
           },
           "401": {
             "description": "`unauthorized`: no token, or the wrong one",
@@ -2890,6 +3270,16 @@
               "application/octet-stream": {}
             }
           },
+          "400": {
+            "description": "`invalidPath`: a parameter in the path can't be read",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
           "404": {
             "description": "`noSuchLink`",
             "content": {
@@ -2966,6 +3356,16 @@
             "description": "The range asked for",
             "content": {
               "application/octet-stream": {}
+            }
+          },
+          "400": {
+            "description": "`invalidPath`: a parameter in the path can't be read",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
             }
           },
           "404": {
@@ -3117,6 +3517,26 @@
               }
             }
           },
+          "413": {
+            "description": "`invalidBody`: the body is too large",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "415": {
+            "description": "`invalidBody`: not sent as `application/json`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
           "422": {
             "description": "`invalidBody`",
             "content": {
@@ -3185,7 +3605,7 @@
             "description": "Replaced"
           },
           "400": {
-            "description": "`invalidViewName`",
+            "description": "`invalidViewName`; or `invalidPath`: a parameter in the path can't be read",
             "content": {
               "application/json": {
                 "schema": {
@@ -3226,6 +3646,26 @@
           },
           "409": {
             "description": "`viewNameTaken`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "413": {
+            "description": "`invalidBody`: the body is too large",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "415": {
+            "description": "`invalidBody`: not sent as `application/json`",
             "content": {
               "application/json": {
                 "schema": {
@@ -3288,6 +3728,16 @@
         "responses": {
           "204": {
             "description": "Removed"
+          },
+          "400": {
+            "description": "`invalidPath`: a parameter in the path can't be read",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
           },
           "401": {
             "description": "`unauthorized`: no token, or the wrong one",
@@ -4943,6 +5393,21 @@
                 "type": "string",
                 "enum": [
                   "noSuchEndpoint"
+                ]
+              }
+            }
+          },
+          {
+            "type": "object",
+            "description": "A part of the path isn't what it should be (a number ID that isn't\na number); `error` says what's wrong.",
+            "required": [
+              "code"
+            ],
+            "properties": {
+              "code": {
+                "type": "string",
+                "enum": [
+                  "invalidPath"
                 ]
               }
             }

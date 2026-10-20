@@ -3,14 +3,14 @@
 use std::path::PathBuf;
 
 use axum::Json;
+use axum::extract::State;
 use axum::extract::rejection::JsonRejection;
-use axum::extract::{Path, State};
 use axum::http::StatusCode;
 use ottie_core::{CategoryId, CategorySettings, Url};
 
 use crate::AppState;
 use crate::access::{Caller, Folders};
-use crate::error::Failure;
+use crate::error::{Failure, Param};
 use crate::settings::{SPEED_LIMIT, in_range};
 use crate::types::{AddedCategory, ApiError, Category, CategoryBody, MatchLink, Matched, Reason};
 
@@ -77,7 +77,7 @@ pub(crate) async fn add(
 pub(crate) async fn update(
     State(state): State<AppState>,
     caller: Caller,
-    Path(id): Path<u32>,
+    Param(id): Param<u32>,
     body: Result<Json<CategoryBody>, JsonRejection>,
 ) -> Result<StatusCode, Failure> {
     let Json(body) = body?;
@@ -105,7 +105,7 @@ pub(crate) async fn update(
 )]
 pub(crate) async fn remove(
     State(state): State<AppState>,
-    Path(id): Path<u32>,
+    Param(id): Param<u32>,
 ) -> Result<StatusCode, Failure> {
     state.manager.remove_category(CategoryId(id)).await?;
     Ok(StatusCode::NO_CONTENT)
