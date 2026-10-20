@@ -80,9 +80,16 @@ export async function addJob(pairing: Pairing, job: AddJob): Promise<string> {
 	return ((await response.json()) as Added).id;
 }
 
-/** Takes a download off Ottie's list (stopping it). */
+/** Takes a download off Ottie's list (stopping it). One already gone counts
+ * as taken off: a try whose answer was lost may have done it. */
 export async function removeJob(pairing: Pairing, id: string): Promise<void> {
-	await request(pairing, 'DELETE', `/jobs/${encodeURIComponent(id)}`);
+	try {
+		await request(pairing, 'DELETE', `/jobs/${encodeURIComponent(id)}`);
+	} catch (error) {
+		if (!(error instanceof Refused && error.body?.code === 'jobNotFound')) {
+			throw error;
+		}
+	}
 }
 
 /** Ottie's settings: whether the token works, and its shared look and language. */

@@ -343,7 +343,8 @@ extension/         the browser extension (pnpm package `extension`; Manifest V3,
                      signs in through the host at install; the context menus
   src/lib/           plain logic, unit-tested (*.test.ts, Vitest): settings.ts (the extension's own, in
                      chrome.storage.local: pairing, take over, smallest size, sites left out), takeover.ts (which
-                     downloads go, and why not), daemon.ts (Ottie's API with this browser's token; a
+                     downloads go, and why not; which copy is left once Ottie has one: Ottie's removed, 3 tries,
+                     if the browser finished first), daemon.ts (Ottie's API with this browser's token; a
                      `requestId` per download handed over, kept for the second try, 0060), host.ts (Ottie
                      on this computer through its native host: sign in, start it), signin.ts
                      (a sign-in link), cookies.ts (the Cookie header), toolbar.ts (the toolbar's icon: the tray's otter in the

@@ -106,11 +106,32 @@ describe('settle', () => {
 	it('says when both are left', async () => {
 		const ottie = removed();
 		expect(await settle(browser('in_progress', true).downloads, 7, ottie.remove)).toBe('both');
+		let tries = 0;
 		const failing = async () => {
+			tries += 1;
 			throw new Error('unreachable');
 		};
-		expect(await settle(browser('complete').downloads, 7, failing)).toBe('both');
+		const waits: number[] = [];
+		const wait = async (ms: number) => void waits.push(ms);
+		expect(await settle(browser('complete').downloads, 7, failing, wait)).toBe('both');
+		expect(tries).toBe(3);
+		expect(waits).toEqual([1000, 2000]);
 		expect(ottie.calls).toEqual([]);
+	});
+
+	it("asks again when Ottie doesn't answer the removal at once", async () => {
+		let tries = 0;
+		const once = async () => {
+			tries += 1;
+			if (tries === 1) {
+				throw new Error('unreachable');
+			}
+		};
+		const waits: number[] = [];
+		const wait = async (ms: number) => void waits.push(ms);
+		expect(await settle(browser('complete').downloads, 7, once, wait)).toBe('browser');
+		expect(tries).toBe(2);
+		expect(waits).toEqual([1000]);
 	});
 
 	it('leaves Ottie the download the browser no longer lists', async () => {

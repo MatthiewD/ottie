@@ -95,24 +95,36 @@ export interface BrowserDownloads {
 /** Which of the two copies of a download is left. */
 export type Kept = 'ottie' | 'browser' | 'both';
 
+/** Ottie's copy is asked to go this many times at most, waiting
+ * `REMOVE_WAIT_MS` after the first failure, twice that after the second. */
+const REMOVE_TRIES = 3;
+const REMOVE_WAIT_MS = 1000;
+
 /** Once Ottie has accepted a download: the browser's is cancelled and taken
  * off its list, unless the browser finished it first; then it keeps its file
- * and Ottie's job is removed. Firefox refuses to cancel a download that has
- * finished, so what became of it is asked even when cancelling fails. */
+ * and Ottie's job is removed (tried again a moment later if Ottie doesn't
+ * answer). Firefox refuses to cancel a download that has finished, so what
+ * became of it is asked even when cancelling fails. */
 export async function settle(
 	browser: BrowserDownloads,
 	id: number,
-	removeOttie: () => Promise<void>
+	removeOttie: () => Promise<void>,
+	wait: (ms: number) => Promise<void> = (ms) => new Promise((done) => setTimeout(done, ms))
 ): Promise<Kept> {
 	// Asked about next, whatever the answer.
 	await browser.cancel(id).catch(() => undefined);
 	const state = await browser.state(id).catch(() => 'unknown');
 	if (state === 'complete') {
-		try {
-			await removeOttie();
-			return 'browser';
-		} catch {
-			return 'both';
+		for (let tried = 1; ; tried++) {
+			try {
+				await removeOttie();
+				return 'browser';
+			} catch {
+				if (tried === REMOVE_TRIES) {
+					return 'both';
+				}
+				await wait(REMOVE_WAIT_MS * tried);
+			}
 		}
 	}
 	if (state === 'in_progress' || state === 'unknown') {

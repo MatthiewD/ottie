@@ -209,7 +209,7 @@ async function takeOver(item: chrome.downloads.DownloadItem): Promise<void> {
 	await setBrowserUi(false);
 	try {
 		if ((await settle(downloads, item.id, () => removeJob(pairing, id))) === 'both') {
-			console.warn('The browser kept a download Ottie took too:', item.url);
+			console.warn('The browser and Ottie both kept this download:', item.url);
 		}
 	} finally {
 		await setBrowserUi(true);
