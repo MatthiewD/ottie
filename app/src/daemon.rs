@@ -10,7 +10,8 @@ use std::time::Duration;
 use anyhow::{Context, Result, anyhow, bail};
 use tauri::Url;
 use tokio::io::{AsyncBufReadExt, AsyncRead, BufReader};
-use tokio::process::{Child, ChildStdin, Command};
+use tokio::process::{ChildStdin, Command};
+use tokio::sync::{oneshot, watch};
 
 use crate::client;
 use crate::identity::{self, Found};
@@ -177,10 +178,28 @@ fn command(ottie: &Path) -> Command {
 }
 
 /// A daemon this app started. Closing its stdin tells it to stop; if the app
-/// crashes, the OS closes it, so the daemon never outlives the app.
+/// crashes, the OS closes it, so the daemon never outlives the app. Dropped,
+/// it's killed.
 pub struct Started {
-    child: Child,
     stdin: Option<ChildStdin>,
+    exit: Exit,
+    /// Kills it; dropping it does too.
+    kill: Option<oneshot::Sender<()>>,
+}
+
+/// Hears when a daemon this app started stops, asked to or not.
+#[derive(Clone)]
+pub struct Exit(watch::Receiver<Option<String>>);
+
+impl Exit {
+    /// Why it stopped (its last error, else its exit status), once it has.
+    pub async fn wait(&mut self) -> String {
+        match self.0.wait_for(Option::is_some).await {
+            Ok(why) => why.clone().unwrap_or_default(),
+            // Its watcher is gone: only as the app's runtime ends.
+            Err(_) => "Ottie stopped".to_owned(),
+        }
+    }
 }
 
 impl Started {
@@ -207,7 +226,29 @@ impl Started {
                 tauri::async_runtime::spawn(async move {
                     while let Ok(Some(_)) = stdout.next_line().await {}
                 });
-                Ok(Started { child, stdin })
+                let (told, exit) = watch::channel(None);
+                let (kill, killed) = oneshot::channel();
+                tauri::async_runtime::spawn(async move {
+                    let status = tokio::select! {
+                        status = child.wait() => status,
+                        // Asked to, or nobody keeps it any more.
+                        _ = killed => {
+                            let _ = child.kill().await;
+                            child.wait().await
+                        }
+                    };
+                    let lines = log.await.unwrap_or_default();
+                    let why = match status {
+                        Ok(status) => reason(lines.iter().map(String::as_str), status),
+                        Err(err) => format!("Ottie stopped ({err})"),
+                    };
+                    told.send_replace(Some(why));
+                });
+                Ok(Started {
+                    stdin,
+                    exit: Exit(exit),
+                    kill: Some(kill),
+                })
             }
             Ok(_) => {
                 // It stopped: its last log lines say why.
@@ -223,12 +264,18 @@ impl Started {
     /// long (the next start resumes from the files anyway).
     pub async fn stop(mut self) {
         drop(self.stdin.take());
-        if tokio::time::timeout(SHUTDOWN, self.child.wait())
-            .await
-            .is_err()
-        {
-            let _ = self.child.kill().await;
+        let mut exit = self.exit();
+        if tokio::time::timeout(SHUTDOWN, exit.wait()).await.is_err() {
+            if let Some(kill) = self.kill.take() {
+                let _ = kill.send(());
+            }
+            exit.wait().await;
         }
+    }
+
+    /// Hears when it stops.
+    pub fn exit(&self) -> Exit {
+        self.exit.clone()
     }
 }
 

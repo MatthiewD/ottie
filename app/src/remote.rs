@@ -9,14 +9,15 @@ use std::collections::HashSet;
 use std::path::PathBuf;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::{Arc, Mutex, MutexGuard, PoisonError};
-use std::time::Duration;
+use std::time::{Duration, Instant};
 
 use serde::{Deserialize, Serialize};
 use tauri::{AppHandle, Emitter, Manager, State, Url};
 use tokio::sync::watch;
 
 use crate::client::{self, Check, Daemon};
-use crate::{clipboard, config, daemon, popup, status};
+use crate::texts::Texts;
+use crate::{clipboard, config, daemon, notify, popup, prefs, status};
 
 const FILE: &str = "daemons.json";
 /// The keychain's service for the tokens; each is `daemon-<id>` in it.
@@ -253,7 +254,14 @@ pub async fn start_local(app: &AppHandle) -> anyhow::Result<Arc<Daemon>> {
         return Ok(daemon.clone());
     }
     let connection = daemon::connect(&switch.ottie, switch.local_link.clone()).await?;
-    *crate::owned(app) = connection.started;
+    let exit = connection.started.as_ref().map(daemon::Started::exit);
+    if let Err(started) = crate::keep(app, connection.started) {
+        started.stop().await;
+        anyhow::bail!("the app quits");
+    }
+    if let Some(exit) = exit {
+        tauri::async_runtime::spawn(watch_over(app.clone(), exit));
+    }
     // Started by us, or it proved it's this computer's Ottie: its pages may
     // have the app's commands.
     crate::grant_local(app, &connection.link)?;
@@ -262,6 +270,90 @@ pub async fn start_local(app: &AppHandle) -> anyhow::Result<Arc<Daemon>> {
     let followed = status::Followed::Local;
     tauri::async_runtime::spawn(status::follow(app.clone(), daemon.clone(), followed));
     Ok(daemon)
+}
+
+/// The waits before each new start of this computer's Ottie, after it
+/// stopped unasked; then the app gives up on it.
+const RESTARTS: [Duration; 3] = [
+    Duration::from_secs(1),
+    Duration::from_secs(5),
+    Duration::from_secs(30),
+];
+/// A daemon that ran this long stopped by accident, not as it starts: the
+/// waits start over.
+const STEADY: Duration = Duration::from_secs(60);
+
+/// When to start this computer's Ottie again.
+#[derive(Debug, Default)]
+struct Restarts {
+    tries: usize,
+}
+
+impl Restarts {
+    /// It stopped after running for `ran` (a start that failed: zero): the
+    /// wait before starting it again, `None` to give up.
+    fn after(&mut self, ran: Duration) -> Option<Duration> {
+        if ran >= STEADY {
+            self.tries = 0;
+        }
+        let wait = RESTARTS.get(self.tries).copied();
+        self.tries += 1;
+        wait
+    }
+}
+
+/// The daemon the app started stopped without being asked to (a crash,
+/// ended from the task manager): it's started again, at the same address
+/// with the same token, so the window, the tray and the page carry on with
+/// it. Not as the app quits, and not once another Ottie answers there (a
+/// terminal, a service): that one isn't the app's to watch.
+async fn watch_over(app: AppHandle, mut exit: daemon::Exit) {
+    let mut restarts = Restarts::default();
+    let mut since = Instant::now();
+    loop {
+        let mut why = exit.wait().await;
+        if crate::quitting(&app) {
+            return;
+        }
+        eprintln!("ottie-app: Ottie stopped unexpectedly: {why}");
+        let mut ran = since.elapsed();
+        exit = loop {
+            let Some(wait) = restarts.after(ran) else {
+                gave_up(&app, &why);
+                return;
+            };
+            ran = Duration::ZERO;
+            tokio::time::sleep(wait).await;
+            if crate::quitting(&app) {
+                return;
+            }
+            let switch = app.state::<Switch>();
+            match daemon::connect(&switch.ottie, switch.local_link.clone()).await {
+                Ok(connection) => {
+                    let exit = connection.started.as_ref().map(daemon::Started::exit);
+                    if let Err(started) = crate::keep(&app, connection.started) {
+                        started.stop().await;
+                        return;
+                    }
+                    match exit {
+                        Some(exit) => break exit,
+                        None => return,
+                    }
+                }
+                Err(err) => why = format!("{err:#}"),
+            }
+        };
+        eprintln!("ottie-app: Ottie started again");
+        since = Instant::now();
+    }
+}
+
+/// This computer's Ottie stopped and won't start: the app tells, once.
+fn gave_up(app: &AppHandle, why: &str) {
+    eprintln!("ottie-app: Ottie won't start again: {why}");
+    let language = app.state::<prefs::Saved>().get().language;
+    let texts = Texts::for_language(language.as_deref());
+    notify::warn(app, texts.local_failed.clone(), Some(why.to_owned()));
 }
 
 /// The daemon `id` names (`None`: this computer's, started if it isn't),
@@ -527,6 +619,21 @@ mod tests {
         assert_eq!(list.may_show(Some(1), Some(3), 3), Err(Refusal::NotFound));
         // Shown at start, as asked for by nobody.
         assert_eq!(list.may_show(None, None, 3), Ok(true));
+    }
+
+    #[test]
+    fn this_computers_ottie_starts_again_three_times_then_gives_up() {
+        let mut restarts = Restarts::default();
+        // It ran a moment, then each start fails or stops at once.
+        assert_eq!(restarts.after(Duration::from_secs(5)), Some(RESTARTS[0]));
+        assert_eq!(restarts.after(Duration::ZERO), Some(RESTARTS[1]));
+        assert_eq!(restarts.after(Duration::ZERO), Some(RESTARTS[2]));
+        assert_eq!(restarts.after(Duration::from_secs(1)), None);
+        // One that ran a good while stopped by accident: the waits start over.
+        let mut restarts = Restarts::default();
+        assert_eq!(restarts.after(Duration::ZERO), Some(RESTARTS[0]));
+        assert_eq!(restarts.after(Duration::ZERO), Some(RESTARTS[1]));
+        assert_eq!(restarts.after(STEADY), Some(RESTARTS[0]));
     }
 
     #[test]

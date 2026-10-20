@@ -50,7 +50,7 @@ Each accepted decision has its own short file here (`NNNN-title.md`): what was d
 | # | Decision |
 |---|---|
 | [0015](0015-web-ui.md) | The web UI is a SvelteKit single-page app in plain CSS, built into the binary. |
-| [0017](0017-desktop-app.md) | The desktop app (Tauri 2) is a window on the daemon's own page, and starts the daemon as a sidecar unless one already answers. Amended by 0034 and 0053 (another computer's Ottie in the window). |
+| [0017](0017-desktop-app.md) | The desktop app (Tauri 2) is a window on the daemon's own page, and starts the daemon as a sidecar unless one already answers, and starts it again if it stops unasked. Amended by 0034 and 0053 (another computer's Ottie in the window). |
 | [0019](0019-own-title-bar.md) | The desktop window draws its own title bar, with its own window buttons. |
 | [0020](0020-first-start-setup.md) | A first-start setup offers starter categories; a built-in Other category holds folders of no category; adding a download has a category step. |
 | [0021](0021-themes-and-layout.md) | The UI follows the chosen mockups: four themes (Sea and Neutral palettes, each light and dark), tabs in the title bar. |

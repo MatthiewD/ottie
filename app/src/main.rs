@@ -148,7 +148,12 @@ const REMOTE_PERMISSIONS: [&str; 21] = [
 
 /// This computer's daemon, if the app started it: stopped when the app quits.
 #[derive(Default)]
-struct Owned(Mutex<Option<Started>>);
+struct Owned {
+    started: Mutex<Option<Started>>,
+    /// Set before the daemon is taken to be stopped: a daemon that stops
+    /// from then on isn't started again (`remote::watch_over`).
+    quitting: AtomicBool,
+}
 
 /// The window was asked for before it existed (a second launch while Ottie
 /// starts in the tray at sign-in): it shows once made.
@@ -453,16 +458,35 @@ fn requested(app: &AppHandle) -> bool {
 /// The app quits: stop the daemon if we started it. One that was already
 /// running (a terminal, a service) keeps running.
 fn stop(app: &AppHandle) {
+    app.state::<Owned>().quitting.store(true, Ordering::SeqCst);
     if let Some(started) = owned(app).take() {
         tauri::async_runtime::block_on(started.stop());
     }
+}
+
+/// From now on this computer's daemon is `started` (`None`: not the app's,
+/// as one found running), unless the app quits: then `started` is given
+/// back, to be stopped.
+pub(crate) fn keep(app: &AppHandle, started: Option<Started>) -> Result<(), Started> {
+    let mut owned = owned(app);
+    // Checked with the lock held: `stop` sets it before taking the lock.
+    if quitting(app) {
+        return started.map_or(Ok(()), Err);
+    }
+    *owned = started;
+    Ok(())
+}
+
+/// Whether the app quits.
+pub(crate) fn quitting(app: &AppHandle) -> bool {
+    app.state::<Owned>().quitting.load(Ordering::SeqCst)
 }
 
 fn owned(app: &AppHandle) -> std::sync::MutexGuard<'_, Option<Started>> {
     // A panic while holding the lock leaves nothing half-done here.
     app.state::<Owned>()
         .inner()
-        .0
+        .started
         .lock()
         .unwrap_or_else(PoisonError::into_inner)
 }
