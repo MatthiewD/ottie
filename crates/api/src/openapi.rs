@@ -1,9 +1,10 @@
 //! The OpenAPI description of the API (docs/decisions/0030). It's built from
 //! the same routes the server answers (`utoipa-axum`), so every route is in
-//! it. What each route says it answers (its error statuses) and which fields
-//! may be missing are written by hand in the annotations, and can still be
-//! wrong. The tests write it to `docs/api/openapi.json`; a running
-//! daemon serves it at `GET /api/v1/openapi.json`.
+//! it. What each route says it answers (its error statuses) is written by hand
+//! in the annotations, and can still be wrong; which fields may be missing is
+//! too, but a test checks it against the TypeScript types. The tests write it
+//! to `docs/api/openapi.json`; a running daemon serves it at
+//! `GET /api/v1/openapi.json`.
 
 use axum::Json;
 use axum::extract::State;
@@ -193,6 +194,164 @@ mod tests {
         let mut wrong = Vec::new();
         check(&serde_json::to_value(crate::openapi()).unwrap(), &mut wrong);
         assert!(wrong.is_empty(), "not camelCase: {wrong:?}");
+    }
+
+    /// The fields a TypeScript declaration lets be left out (`name?:`),
+    /// and all of them, read from `type X = { … };`; `None` for anything
+    /// else (a union, an enum).
+    fn ts_fields(decl: &str) -> Option<(Vec<String>, Vec<String>)> {
+        // Doc comments may hold any character.
+        let mut text = String::new();
+        let mut rest = decl;
+        while let Some(start) = rest.find("/*") {
+            text.push_str(&rest[..start]);
+            let end = rest[start..].find("*/")? + start + 2;
+            rest = &rest[end..];
+        }
+        text.push_str(rest);
+        let body = text.split_once('=')?.1.trim().trim_end_matches(';').trim();
+        let body = body.strip_prefix('{')?.strip_suffix('}')?;
+        let (mut optional, mut all) = (Vec::new(), Vec::new());
+        // A field starts the body or follows a comma, outside any nesting.
+        let mut depth = 0;
+        let mut field_next = true;
+        let mut chars = body.char_indices().peekable();
+        while let Some((at, c)) = chars.next() {
+            match c {
+                '{' | '<' | '(' | '[' => depth += 1,
+                '}' | '>' | ')' | ']' => depth -= 1,
+                ',' if depth == 0 => field_next = true,
+                c if field_next && depth == 0 && (c.is_alphanumeric() || c == '"') => {
+                    field_next = false;
+                    let mut name = c.to_string();
+                    while let Some(&(_, next)) = chars.peek() {
+                        if next.is_alphanumeric() || next == '_' || next == '"' {
+                            name.push(next);
+                            chars.next();
+                        } else {
+                            break;
+                        }
+                    }
+                    let name = name.trim_matches('"').to_owned();
+                    let after = body[at..]
+                        .trim_start_matches(|c: char| c.is_alphanumeric() || c == '_' || c == '"');
+                    if after.trim_start().starts_with('?') {
+                        optional.push(name.clone());
+                    }
+                    all.push(name);
+                }
+                _ => {}
+            }
+        }
+        Some((optional, all))
+    }
+
+    /// The OpenAPI description and the TypeScript types say the same of
+    /// each field: required, or left out at times. Both are generated, and
+    /// apart: utoipa takes every `Option` as optional unless the field says
+    /// `#[schema(required = true)]`, ts-rs only a field with `#[ts(optional)]`.
+    /// Answers send their `Option`s as `null`: required. Bodies may leave
+    /// theirs out: optional.
+    #[test]
+    fn openapi_and_typescript_agree_on_which_fields_may_be_missing() {
+        use crate::types::*;
+        use ts_rs::{Config, TS};
+
+        let cfg = Config::default();
+        let mut decls = std::collections::HashMap::new();
+        macro_rules! declare {
+            ($($name:ident),* $(,)?) => {
+                $(decls.insert(stringify!($name), <$name as TS>::decl(&cfg));)*
+            };
+        }
+        declare![
+            AccessInfo,
+            AddDevice,
+            AddJob,
+            AddJobs,
+            Added,
+            AddedCategory,
+            AddedDevice,
+            AddedJobs,
+            AddedSlot,
+            AddedView,
+            AddedWithin,
+            AllowedFolders,
+            ApiError,
+            Appearance,
+            AppearanceMode,
+            Arrangement,
+            BuiltIn,
+            ByteRange,
+            Category,
+            CategoryBody,
+            Day,
+            Device,
+            Event,
+            Existing,
+            FolderList,
+            FoundLink,
+            IdentityChallenge,
+            IdentityProof,
+            Job,
+            JobChange,
+            JobState,
+            MatchLink,
+            Matched,
+            MoveJob,
+            Palette,
+            Preview,
+            PreviewLinks,
+            Priority,
+            Problem,
+            Reason,
+            RefusedJob,
+            Reorder,
+            ReorderJobs,
+            ReorderSlots,
+            Settings,
+            SettingsChange,
+            SetupStep,
+            Slot,
+            SlotBody,
+            SlotDownloads,
+            SlotList,
+            SortDirection,
+            SortKey,
+            SpeedHistory,
+            StreamLink,
+            TrustCertificate,
+            TrustedCertificate,
+            View,
+            ViewBody,
+            ViewFilters,
+        ];
+
+        let spec = serde_json::to_value(crate::openapi()).unwrap();
+        let mut differ = Vec::new();
+        for (name, schema) in spec["components"]["schemas"].as_object().unwrap() {
+            let Some(properties) = schema["properties"].as_object() else {
+                continue; // A union or an enum: no fields of its own.
+            };
+            let decl = decls
+                .get(name.as_str())
+                .unwrap_or_else(|| panic!("{name}: add it to the list above"));
+            let (optional, all) =
+                ts_fields(decl).unwrap_or_else(|| panic!("{name}: not an object in TypeScript"));
+            let required: Vec<&str> = schema["required"]
+                .as_array()
+                .map(|names| names.iter().filter_map(Value::as_str).collect())
+                .unwrap_or_default();
+            for field in properties.keys() {
+                assert!(all.contains(field), "{name}.{field} isn't in TypeScript");
+                let in_openapi = !required.contains(&field.as_str());
+                if in_openapi != optional.contains(field) {
+                    let says = if in_openapi { "OpenAPI" } else { "TypeScript" };
+                    differ.push(format!("{name}.{field} (optional in {says})"));
+                }
+            }
+        }
+        assert!(differ.is_empty(), "{} differ: {differ:#?}", differ.len());
     }
 
     #[test]

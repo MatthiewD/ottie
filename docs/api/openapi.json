@@ -3799,6 +3799,7 @@
         "type": "object",
         "description": "Who a token belongs to, and the folders devices may use: `GET /access`\n(docs/decisions/0052).",
         "required": [
+          "device",
           "readOnly",
           "folders"
         ],
@@ -4189,9 +4190,11 @@
         "required": [
           "id",
           "name",
+          "folder",
           "extensions",
           "speedLimit",
-          "maxConcurrent"
+          "maxConcurrent",
+          "builtIn"
         ],
         "properties": {
           "builtIn": {
@@ -4264,7 +4267,7 @@
               "string",
               "null"
             ],
-            "description": "An absolute folder, or null."
+            "description": "An absolute folder; null or left out: none."
           },
           "maxConcurrent": {
             "type": "integer",
@@ -4300,7 +4303,8 @@
           "id",
           "name",
           "readOnly",
-          "created"
+          "created",
+          "lastUsed"
         ],
         "properties": {
           "created": {
@@ -4695,18 +4699,26 @@
           "id",
           "url",
           "destDir",
+          "fileName",
           "state",
           "downloaded",
+          "total",
           "resumable",
+          "error",
+          "problem",
           "priority",
           "place",
           "speedLimit",
           "streaming",
           "category",
           "retries",
+          "retryAt",
           "ranges",
           "moving",
-          "waitingForBandwidth"
+          "waitingForBandwidth",
+          "startAt",
+          "stopAt",
+          "heldBy"
         ],
         "properties": {
           "category": {
@@ -4948,6 +4960,7 @@
         "description": "Answer to `POST /categories/match`: the category a download of that link\nwould get. The server's real file name may still move it, unless the user\npicks the category or a folder.",
         "required": [
           "category",
+          "extension",
           "byFolder"
         ],
         "properties": {
@@ -6252,6 +6265,7 @@
         "description": "What applies to the whole daemon, as `GET /settings` answers it and\n`settingsChanged` events send it.",
         "required": [
           "setupDone",
+          "setupStep",
           "maxConcurrent",
           "globalLimit",
           "maxRetries",
@@ -6259,7 +6273,10 @@
           "firstRetryWaitMs",
           "maxBatch",
           "streamMedia",
-          "existing"
+          "appearance",
+          "language",
+          "existing",
+          "storageFailing"
         ],
         "properties": {
           "appearance": {
@@ -6472,11 +6489,16 @@
           "place",
           "name",
           "enabled",
+          "category",
           "days",
+          "date",
           "from",
           "to",
+          "downloads",
           "letFinish",
           "stayPaused",
+          "speedLimit",
+          "maxConcurrent",
           "active"
         ],
         "properties": {
@@ -6679,6 +6701,7 @@
         "type": "object",
         "description": "Answer to `GET /slots`.",
         "required": [
+          "timeZone",
           "slots"
         ],
         "properties": {
@@ -6836,6 +6859,8 @@
         "type": "object",
         "description": "Which downloads a view shows: those that pass every filter.",
         "required": [
+          "states",
+          "categories",
           "nameContains",
           "added"
         ],

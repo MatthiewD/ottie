@@ -6,9 +6,9 @@
  */
 export type CategoryBody = { name: string, 
 /**
- * An absolute folder, or null.
+ * An absolute folder; null or left out: none.
  */
-folder: string | null, 
+folder?: string | null, 
 /**
  * With or without the dot, any case: `.MKV` and `mkv` are the same.
  */

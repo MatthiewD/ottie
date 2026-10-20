@@ -32,18 +32,22 @@ pub struct Job {
     pub url: String,
     pub dest_dir: String,
     /// Known once the server has answered.
+    #[schema(required = true)]
     pub file_name: Option<String>,
     pub state: JobState,
     #[ts(type = "number")]
     pub downloaded: u64,
     /// Size in bytes, if the server said.
     #[ts(type = "number | null")]
+    #[schema(required = true)]
     pub total: Option<u64>,
     /// Whether pausing keeps what's downloaded.
     pub resumable: bool,
     /// Why it failed, or the last failure while `retrying`, in English.
+    #[schema(required = true)]
     pub error: Option<String>,
     /// The same, as a code to translate (see `Problem`).
+    #[schema(required = true)]
     pub problem: Option<Problem>,
     pub priority: Priority,
     /// Its place in the queue: among the waiting downloads of its priority,
@@ -61,6 +65,7 @@ pub struct Job {
     pub retries: u32,
     /// While `retrying`: when, in milliseconds since 1970 (UTC).
     #[ts(type = "number | null")]
+    #[schema(required = true)]
     pub retry_at: Option<u64>,
     /// Downloads over several connections: each connection's range, as last
     /// saved (`progress` events bring them live). Empty for one connection.
@@ -74,11 +79,14 @@ pub struct Job {
     /// While `scheduled`: when it joins the queue, in milliseconds since
     /// 1970 (UTC).
     #[ts(type = "number | null")]
+    #[schema(required = true)]
     pub start_at: Option<u64>,
     /// When it pauses if it hasn't finished by then, the same way.
     #[ts(type = "number | null")]
+    #[schema(required = true)]
     pub stop_at: Option<u64>,
     /// While `scheduled`: the time slot that keeps it from running, if one does.
+    #[schema(required = true)]
     pub held_by: Option<u32>,
 }
 
@@ -337,6 +345,7 @@ pub struct Category {
     pub id: u32,
     pub name: String,
     /// Where its downloads are saved; null: each download must name a folder.
+    #[schema(required = true)]
     pub folder: Option<String>,
     /// Lowercase, without the dot. Each belongs to one category at most.
     pub extensions: Vec<String>,
@@ -346,6 +355,7 @@ pub struct Category {
     /// How many of its downloads may run at once; 0 = no cap of its own.
     pub max_concurrent: u32,
     /// Null for the user's own categories.
+    #[schema(required = true)]
     pub built_in: Option<BuiltIn>,
 }
 
@@ -368,7 +378,9 @@ pub enum BuiltIn {
 #[ts(export)]
 pub struct CategoryBody {
     pub name: String,
-    /// An absolute folder, or null.
+    /// An absolute folder; null or left out: none.
+    #[serde(default)]
+    #[ts(optional = nullable)]
     pub folder: Option<String>,
     /// With or without the dot, any case: `.MKV` and `mkv` are the same.
     pub extensions: Vec<String>,
@@ -407,6 +419,7 @@ pub struct MatchLink {
 pub struct Matched {
     pub category: u32,
     /// The extension the link suggests, if any.
+    #[schema(required = true)]
     pub extension: Option<String>,
     /// The folder decided: it's this category's folder, or (Other) the
     /// folder of none.
@@ -432,8 +445,10 @@ pub struct View {
 pub struct ViewFilters {
     /// Null: any state. An empty list shows nothing. `connecting` counts as
     /// `downloading` (the daemon saves it so).
+    #[schema(required = true)]
     pub states: Option<Vec<JobState>>,
     /// Category IDs; null: any category.
+    #[schema(required = true)]
     pub categories: Option<Vec<u32>>,
     /// Part of the file name, in any case; empty: any name.
     pub name_contains: String,
@@ -541,17 +556,20 @@ pub struct Slot {
     /// Off: kept, but it never applies.
     pub enabled: bool,
     /// The category it applies to; null: the whole queue.
+    #[schema(required = true)]
     pub category: Option<u32>,
     /// The days it happens on, every week (Monday first); empty when it
     /// happens once.
     pub days: Vec<Day>,
     /// `YYYY-MM-DD`: it happens once, on that day, and is removed once over.
+    #[schema(required = true)]
     pub date: Option<String>,
     /// `HH:MM`, in the daemon's time zone.
     pub from: String,
     /// `HH:MM`; on the next day if it isn't after `from` (the same: a whole day).
     pub to: String,
     /// What it does to downloads; null: nothing.
+    #[schema(required = true)]
     pub downloads: Option<SlotDownloads>,
     /// With `stop`: running downloads finish; only new ones wait.
     pub let_finish: bool,
@@ -561,8 +579,10 @@ pub struct Slot {
     /// Bytes per second for the queue (or the category) while it lasts;
     /// 0 = no limit; null: the usual limit.
     #[ts(type = "number | null")]
+    #[schema(required = true)]
     pub speed_limit: Option<u64>,
     /// How many downloads may run at once while it lasts; null: the usual.
+    #[schema(required = true)]
     pub max_concurrent: Option<u32>,
     /// It applies right now.
     pub active: bool,
@@ -621,6 +641,7 @@ pub struct SlotBody {
 pub struct SlotList {
     /// The time zone slots follow (the daemon's computer's), like
     /// `Europe/Paris`; null if the system doesn't name it.
+    #[schema(required = true)]
     pub time_zone: Option<String>,
     /// In the order of the list: where two apply to the same thing, the
     /// higher one wins.
@@ -943,6 +964,7 @@ pub struct Settings {
     pub setup_done: bool,
     /// The last step of that setup someone went past (done or skipped), so
     /// it carries on after it, in whichever front end; null: from the start.
+    #[schema(required = true)]
     pub setup_step: Option<SetupStep>,
     /// How many downloads run at once; the others wait. At least 1.
     pub max_concurrent: u32,
@@ -967,9 +989,11 @@ pub struct Settings {
     pub stream_media: bool,
     /// The look shared by the devices that choose to follow it; null until
     /// one shares its own.
+    #[schema(required = true)]
     pub appearance: Option<Appearance>,
     /// The language those devices show, as a tag like `en` or `pt-BR`; null:
     /// each shows its own system's. A device without it keeps its own.
+    #[schema(required = true)]
     pub language: Option<String>,
     /// What a download does when a file with its name is already in its
     /// folder, unless the one adding it said (`existing` in `POST /jobs`).
@@ -977,6 +1001,7 @@ pub struct Settings {
     /// While Ottie can't save to its database (disk full, a drive gone), the
     /// last error, in English; null when saving works. Not a setting: no
     /// change sets it, and `settingsChanged` tells when it changes.
+    #[schema(required = true)]
     pub storage_failing: Option<String>,
 }
 
@@ -1193,6 +1218,7 @@ pub enum Problem {
 pub struct AccessInfo {
     /// The device this token was given to; null for the computer running
     /// Ottie (its token file's token), which alone manages devices and folders.
+    #[schema(required = true)]
     pub device: Option<Device>,
     /// It may look but not change anything.
     pub read_only: bool,
@@ -1233,6 +1259,7 @@ pub struct Device {
     pub created: u64,
     /// When its token was last used (to the minute), in milliseconds since 1970.
     #[ts(type = "number | null")]
+    #[schema(required = true)]
     pub last_used: Option<u64>,
 }
 
