@@ -222,6 +222,7 @@ fn another_program_on_the_port_never_gets_the_token() {
             message.contains("isn't your Ottie"),
             "{command:?}: {message}"
         );
+        assert!(!message.contains("  "), "{command:?}: {message}");
     }
     let heard = String::from_utf8_lossy(&heard.lock().unwrap()).into_owned();
     assert!(heard.contains("/api/v1/identity"), "{heard}");

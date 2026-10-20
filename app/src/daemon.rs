@@ -164,7 +164,9 @@ async fn found(link: &Url) -> Found {
 fn not_ours(link: &Url) -> anyhow::Error {
     let at = link.origin().ascii_serialization();
     anyhow!(
-        "what answers at {at} isn't your Ottie: it can't prove it knows this computer's token, so the token wasn't sent.          It may be Ottie started with other folders, an Ottie older than this app (restart it), or another program on that port"
+        "what answers at {at} isn't your Ottie: it can't prove it knows this computer's token, \
+         so the token wasn't sent. It may be Ottie started with other folders, an Ottie older \
+         than this app (restart it), or another program on that port"
     )
 }
 

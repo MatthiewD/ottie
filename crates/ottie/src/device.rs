@@ -194,7 +194,9 @@ pub async fn check_identity(http: &reqwest::Client, addr: SocketAddr, token: &st
             .is_ok_and(|answer| ottie_api::identity::proven(token, &nonce, &answer.proof));
     if !proven {
         bail!(
-            "what answers at {local} isn't your Ottie: it can't prove it knows this computer's token, so the token wasn't sent.              It may be Ottie started with other folders, an Ottie older than this one (restart it), or another program on that port"
+            "what answers at {local} isn't your Ottie: it can't prove it knows this computer's \
+             token, so the token wasn't sent. It may be Ottie started with other folders, an \
+             Ottie older than this one (restart it), or another program on that port"
         );
     }
     Ok(())
