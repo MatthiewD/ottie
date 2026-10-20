@@ -264,6 +264,7 @@
 	"set_link_copied": "Disalin",
 	"set_link_label": "Tautan masuk",
 	"read_only_note": "Hanya baca: perangkat ini bisa melihat dan memutar unduhan, tetapi tidak bisa mengubahnya.",
+	"storage_failing": "Ottie tidak dapat menyimpan daftar unduhannya: perubahan bisa hilang saat Ottie berhenti. Kosongkan ruang disk atau periksa drive.",
 	"reason_read_only": "Perangkat ini hanya baca: tidak bisa mengubah apa pun.",
 	"reason_owner_only": "Hanya komputer tempat Ottie berjalan yang bisa melakukan ini.",
 	"reason_folder_not_allowed": "Perangkat ini tidak bisa menyimpan unduhan di {folder}: hanya di folder sebuah kategori atau folder yang tercantum di Pengaturan.",

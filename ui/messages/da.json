@@ -264,6 +264,7 @@
 	"set_link_copied": "Kopieret",
 	"set_link_label": "Loginlink",
 	"read_only_note": "Kun læsning: denne enhed kan se og afspille downloads, ikke ændre dem.",
+	"storage_failing": "Ottie kan ikke gemme sin liste over downloads: ændringer kan gå tabt, når den stopper. Frigør diskplads, eller tjek drevet.",
 	"reason_read_only": "Denne enhed må kun læse: den kan ikke ændre noget.",
 	"reason_owner_only": "Kun computeren, hvor Ottie kører, kan gøre dette.",
 	"reason_folder_not_allowed": "Denne enhed kan ikke gemme downloads i {folder}: kun i en kategoris mappe eller i en mappe, der står i Indstillinger.",

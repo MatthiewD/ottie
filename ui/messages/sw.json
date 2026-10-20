@@ -264,6 +264,7 @@
 	"set_link_copied": "Imenakiliwa",
 	"set_link_label": "Kiungo cha kuingia",
 	"read_only_note": "Kusoma tu: kifaa hiki kinaweza kuona na kucheza vipakuliwa, lakini si kuvibadilisha.",
+	"storage_failing": "Ottie haiwezi kuhifadhi orodha yake ya vipakuliwa: mabadiliko yanaweza kupotea inaposimama. Futa nafasi kwenye diski au kagua kiendeshi.",
 	"reason_read_only": "Kifaa hiki ni cha kusoma tu: hakiwezi kubadilisha chochote.",
 	"reason_owner_only": "Ni kompyuta inayoendesha Ottie pekee inayoweza kufanya hivi.",
 	"reason_folder_not_allowed": "Kifaa hiki hakiwezi kuhifadhi vipakuliwa kwenye {folder}: kwenye folda ya aina fulani tu au folda iliyoorodheshwa kwenye Mipangilio.",

@@ -264,6 +264,7 @@
 	"set_link_copied": "Másolva",
 	"set_link_label": "Bejelentkezési link",
 	"read_only_note": "Csak olvasás: ez az eszköz láthatja és lejátszhatja a letöltéseket, de nem módosíthatja őket.",
+	"storage_failing": "Az Ottie nem tudja menteni a letöltések listáját: a változások elveszhetnek, amikor leáll. Szabadíts fel helyet a lemezen, vagy ellenőrizd a meghajtót.",
 	"reason_read_only": "Ez az eszköz csak olvashat: semmit nem módosíthat.",
 	"reason_owner_only": "Ezt csak az a számítógép teheti meg, amelyen az Ottie fut.",
 	"reason_folder_not_allowed": "Ez az eszköz nem menthet letöltéseket ide: {folder}. Csak egy kategória mappájába vagy a Beállításokban felsorolt mappákba.",

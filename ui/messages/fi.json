@@ -264,6 +264,7 @@
 	"set_link_copied": "Kopioitu",
 	"set_link_label": "Kirjautumislinkki",
 	"read_only_note": "Vain luku: tämä laite voi nähdä ja toistaa lataukset, mutta ei muuttaa niitä.",
+	"storage_failing": "Ottie ei voi tallentaa latausluetteloaan: muutokset voivat kadota, kun se pysähtyy. Vapauta levytilaa tai tarkista asema.",
 	"reason_read_only": "Tämä laite voi vain lukea: se ei voi muuttaa mitään.",
 	"reason_owner_only": "Tämän voi tehdä vain tietokone, jossa Ottie on käynnissä.",
 	"reason_folder_not_allowed": "Tämä laite ei voi tallentaa latauksia kansioon {folder}: vain jonkin luokan kansioon tai Asetuksissa lueteltuun kansioon.",

@@ -264,6 +264,7 @@
 	"set_link_copied": "Kopierad",
 	"set_link_label": "Inloggningslänk",
 	"read_only_note": "Endast läsning: den här enheten kan se och spela upp nedladdningar, inte ändra dem.",
+	"storage_failing": "Ottie kan inte spara sin lista över nedladdningar: ändringar kan gå förlorade när den stoppas. Frigör diskutrymme eller kontrollera enheten.",
 	"reason_read_only": "Den här enheten får bara läsa: den kan inte ändra något.",
 	"reason_owner_only": "Bara datorn där Ottie körs kan göra det här.",
 	"reason_folder_not_allowed": "Den här enheten kan inte spara nedladdningar i {folder}: bara i en kategoris mapp eller i en mapp som anges i Inställningar.",

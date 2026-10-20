@@ -264,6 +264,7 @@
 	"set_link_copied": "Gekopieerd",
 	"set_link_label": "Aanmeldlink",
 	"read_only_note": "Alleen lezen: dit apparaat kan downloads zien en afspelen, niet wijzigen.",
+	"storage_failing": "Ottie kan zijn lijst met downloads niet opslaan: wijzigingen kunnen verloren gaan als het stopt. Maak schijfruimte vrij of controleer de schijf.",
 	"reason_read_only": "Dit apparaat mag alleen lezen: het kan niets wijzigen.",
 	"reason_owner_only": "Alleen de computer waarop Ottie draait kan dit.",
 	"reason_folder_not_allowed": "Dit apparaat kan geen downloads opslaan in {folder}: alleen in de map van een categorie of in een map uit de Instellingen.",

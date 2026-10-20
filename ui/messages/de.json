@@ -264,6 +264,7 @@
 	"set_link_copied": "Kopiert",
 	"set_link_label": "Anmeldelink",
 	"read_only_note": "Nur lesen: Dieses Gerät kann Downloads sehen und abspielen, aber nicht ändern.",
+	"storage_failing": "Ottie kann seine Download-Liste nicht speichern: Änderungen können beim Beenden verloren gehen. Geben Sie Speicherplatz frei oder prüfen Sie das Laufwerk.",
 	"reason_read_only": "Dieses Gerät darf nur lesen: Es kann nichts ändern.",
 	"reason_owner_only": "Das kann nur der Computer, auf dem Ottie läuft.",
 	"reason_folder_not_allowed": "Dieses Gerät kann keine Downloads in {folder} speichern: nur im Ordner einer Kategorie oder in einem in den Einstellungen aufgeführten Ordner.",

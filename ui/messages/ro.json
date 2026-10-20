@@ -264,6 +264,7 @@
 	"set_link_copied": "Copiat",
 	"set_link_label": "Link de conectare",
 	"read_only_note": "Doar citire: acest dispozitiv poate vedea și reda descărcările, nu le poate modifica.",
+	"storage_failing": "Ottie nu poate salva lista de descărcări: modificările se pot pierde când se oprește. Eliberați spațiu pe disc sau verificați unitatea.",
 	"reason_read_only": "Acest dispozitiv are acces doar pentru citire: nu poate modifica nimic.",
 	"reason_owner_only": "Doar computerul pe care rulează Ottie poate face asta.",
 	"reason_folder_not_allowed": "Acest dispozitiv nu poate salva descărcări în {folder}: doar în dosarul unei categorii sau într-unul din lista din Setări.",

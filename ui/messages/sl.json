@@ -264,6 +264,7 @@
 	"set_link_copied": "Kopirano",
 	"set_link_label": "Povezava za prijavo",
 	"read_only_note": "Samo branje: ta naprava lahko prenose vidi in predvaja, ne more pa jih spreminjati.",
+	"storage_failing": "Ottie ne more shraniti svojega seznama prenosov: spremembe se lahko ob ustavitvi izgubijo. Sprostite prostor na disku ali preverite pogon.",
 	"reason_read_only": "Ta naprava ima dostop samo za branje: ne more ničesar spremeniti.",
 	"reason_owner_only": "To lahko stori samo računalnik, na katerem teče Ottie.",
 	"reason_folder_not_allowed": "Ta naprava ne more shranjevati prenosov v {folder}: samo v mapo kakšne kategorije ali v mapo, navedeno v Nastavitvah.",

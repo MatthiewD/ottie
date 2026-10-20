@@ -965,6 +965,10 @@ pub struct Settings {
     /// What a download does when a file with its name is already in its
     /// folder, unless the one adding it said (`existing` in `POST /jobs`).
     pub existing: Existing,
+    /// While Ottie can't save to its database (disk full, a drive gone), the
+    /// last error, in English; null when saving works. Not a setting: no
+    /// change sets it, and `settingsChanged` tells when it changes.
+    pub storage_failing: Option<String>,
 }
 
 /// Body of `PATCH /settings`: only the fields given change, all at once.
@@ -1551,6 +1555,7 @@ impl From<ottie_core::Settings> for Settings {
             appearance: settings.appearance.map(Appearance::from),
             language: settings.language,
             existing: settings.existing.into(),
+            storage_failing: settings.storage_failing,
         }
     }
 }

@@ -264,6 +264,7 @@
 	"set_link_copied": "已複製",
 	"set_link_label": "登入連結",
 	"read_only_note": "唯讀：此裝置可以檢視和播放下載，但無法變更。",
+	"storage_failing": "Ottie 無法儲存下載清單：停止時變更可能會遺失。請釋出一些磁碟空間，或檢查磁碟機。",
 	"reason_read_only": "此裝置是唯讀的：無法變更任何內容。",
 	"reason_owner_only": "只有執行 Ottie 的電腦可以這樣做。",
 	"reason_folder_not_allowed": "此裝置無法把下載儲存到 {folder}：只能儲存到某個類別的資料夾，或設定中列出的資料夾。",

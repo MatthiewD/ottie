@@ -264,6 +264,7 @@
 	"set_link_copied": "Kopeeritud",
 	"set_link_label": "Sisselogimislink",
 	"read_only_note": "Ainult lugemine: see seade saab allalaadimisi näha ja esitada, aga mitte muuta.",
+	"storage_failing": "Ottie ei saa oma allalaadimiste loendit salvestada: muudatused võivad selle peatumisel kaduda. Vabasta kettaruumi või kontrolli draivi.",
 	"reason_read_only": "See seade saab ainult lugeda: ta ei saa midagi muuta.",
 	"reason_owner_only": "Seda saab teha ainult arvuti, kus Ottie töötab.",
 	"reason_folder_not_allowed": "See seade ei saa allalaadimisi salvestada kausta {folder}: ainult mõne kategooria kausta või seadetes loetletud kausta.",

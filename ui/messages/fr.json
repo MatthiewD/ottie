@@ -264,6 +264,7 @@
 	"set_link_copied": "Copié",
 	"set_link_label": "Lien de connexion",
 	"read_only_note": "Lecture seule : cet appareil peut voir et lire les téléchargements, pas les modifier.",
+	"storage_failing": "Ottie ne peut pas enregistrer sa liste de téléchargements : des changements pourraient être perdus à son arrêt. Libérez de l’espace disque ou vérifiez le disque.",
 	"reason_read_only": "Cet appareil est en lecture seule : il ne peut rien modifier.",
 	"reason_owner_only": "Seul l’ordinateur où tourne Ottie peut faire cela.",
 	"reason_folder_not_allowed": "Cet appareil ne peut pas enregistrer de téléchargements dans {folder} : seulement dans le dossier d’une catégorie ou dans un dossier listé dans les Paramètres.",

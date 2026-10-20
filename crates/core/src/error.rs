@@ -126,6 +126,11 @@ pub enum Error {
     #[error("the database thread has stopped")]
     StoreStopped,
 
+    /// Writing to the database failed (disk full, a drive gone, a broken
+    /// file): the database's English text.
+    #[error("can't save to the database: {0}")]
+    StorageFailed(String),
+
     #[error("folder path is not valid UTF-8: {}", .0.display())]
     NonUtf8Path(PathBuf),
 

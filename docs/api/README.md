@@ -211,6 +211,10 @@ curl -H "Authorization: Bearer $TOKEN" -H 'Content-Type: application/json' \
        "referrer": "https://example.com/reports", "userAgent": "Mozilla/5.0 …"}' $API/jobs
 ```
 
+## When saving fails
+
+While Ottie can't write to its database (a full disk, a drive gone), `storageFailing` in `GET /settings` and in every `settingsChanged` holds the last error's English text, and it's `null` again once writing works. Changes made meanwhile may be lost when Ottie stops: show it, as the web UI does with a banner.
+
 ## The first-start setup
 
 Until `setupDone` is true in `GET /settings`, front ends offer the setup. It comes in steps (`setupStep`, in this order: `look`, `downloads`, `categories`, then the desktop app's `startup`, `clipboard`, `notifications`); a front end shows those it has. Going past one, done or skipped, saves it with the settings it changes, so a setup stopped halfway carries on after it in whichever front end opens next. Ending it sets `setupDone` and clears the step.

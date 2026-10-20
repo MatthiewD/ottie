@@ -264,6 +264,7 @@
 	"set_link_copied": "Copiado",
 	"set_link_label": "Link de acesso",
 	"read_only_note": "Só leitura: este dispositivo pode ver e reproduzir as transferências, não alterá-las.",
+	"storage_failing": "O Ottie não consegue guardar a lista de transferências: as alterações podem perder-se quando parar. Liberte espaço em disco ou verifique a unidade.",
 	"reason_read_only": "Este dispositivo é só de leitura: não pode alterar nada.",
 	"reason_owner_only": "Só o computador onde o Ottie está a correr pode fazer isto.",
 	"reason_folder_not_allowed": "Este dispositivo não pode guardar transferências em {folder}: só na pasta de uma categoria ou numa das indicadas nas Definições.",

@@ -280,6 +280,7 @@ async fn settings_priorities_and_limits_survive_a_restart() {
         appearance: Some(appearance),
         language: Some("fr".into()),
         existing: Existing::Replace,
+        storage_failing: None,
     };
     assert_eq!(manager.settings().await.unwrap(), expected);
     let job = &manager.list().await.unwrap()[0];
@@ -388,4 +389,78 @@ async fn removed_jobs_stay_removed_and_their_ids_are_not_reused() {
     // last ID can tell apart.
     let next = s.add(&manager).await;
     assert!(next > removed, "{next} reuses or precedes {removed}");
+}
+
+/// Makes every write of the settings fail, as a full disk would, until
+/// `writes_work` (through a second connection to the same database).
+fn writes_fail(db: &std::path::Path) {
+    let conn = rusqlite::Connection::open(db).unwrap();
+    for (name, event) in [("full_insert", "INSERT"), ("full_update", "UPDATE")] {
+        conn.execute_batch(&format!(
+            "CREATE TRIGGER {name} BEFORE {event} ON settings \
+             BEGIN SELECT RAISE(ABORT, 'test: the disk is full'); END;"
+        ))
+        .unwrap();
+    }
+}
+
+fn writes_work(db: &std::path::Path) {
+    let conn = rusqlite::Connection::open(db).unwrap();
+    conn.execute_batch("DROP TRIGGER full_insert; DROP TRIGGER full_update;")
+        .unwrap();
+}
+
+/// Waits for settings whose `storage_failing` is `failing`.
+async fn wait_for_storage(
+    events: &mut tokio::sync::broadcast::Receiver<ottie_core::JobEvent>,
+    failing: bool,
+) -> Settings {
+    tokio::time::timeout(TIMEOUT, async {
+        loop {
+            if let ottie_core::JobEvent::SettingsChanged(settings) = events.recv().await.unwrap()
+                && settings.storage_failing.is_some() == failing
+            {
+                return settings;
+            }
+        }
+    })
+    .await
+    .unwrap_or_else(|_| panic!("storage never became failing: {failing}"))
+}
+
+#[tokio::test]
+async fn a_failing_database_is_told_and_shutdown_says_so() {
+    let s = setup().await;
+    let manager = s.launch().await;
+    let mut events = manager.subscribe();
+    let change = |max| SettingsChange {
+        max_concurrent: Some(max),
+        ..SettingsChange::default()
+    };
+
+    writes_fail(&s.db);
+    manager.change_settings(change(5)).await.unwrap();
+    let told = wait_for_storage(&mut events, true).await;
+    assert!(
+        told.storage_failing
+            .as_deref()
+            .unwrap()
+            .contains("the disk is full"),
+        "{told:?}"
+    );
+    assert!(manager.settings().await.unwrap().storage_failing.is_some());
+
+    // Working again: said too.
+    writes_work(&s.db);
+    manager.change_settings(change(6)).await.unwrap();
+    wait_for_storage(&mut events, false).await;
+
+    // A shutdown whose last saves failed says so.
+    writes_fail(&s.db);
+    manager.change_settings(change(7)).await.unwrap();
+    let err = manager.shutdown().await.unwrap_err();
+    assert!(
+        matches!(&err, Error::StorageFailed(text) if text.contains("the disk is full")),
+        "{err:?}"
+    );
 }

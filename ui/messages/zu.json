@@ -264,6 +264,7 @@
 	"set_link_copied": "Kukopishiwe",
 	"set_link_label": "Isixhumanisi sokungena",
 	"read_only_note": "Ukufunda kuphela: le divayisi ingabona futhi idlale okulandiwe, kodwa ayikwazi ukukushintsha.",
+	"storage_failing": "I-Ottie ayikwazi ukulondoloza uhlu lwayo lokulandiwe: izinguquko zingalahleka uma ima. Khulula isikhala kudiski noma uhlole idrayivu.",
 	"reason_read_only": "Le divayisi ingeyokufunda kuphela: ayikwazi ukushintsha lutho.",
 	"reason_owner_only": "Lokhu kungenziwa kuphela yikhompyutha esebenzisa i-Ottie.",
 	"reason_folder_not_allowed": "Le divayisi ayikwazi ukulondoloza okulandiwe ku-{folder}: kuphela kufolda yesigaba noma efolda ebalwe kokuthi Izilungiselelo.",

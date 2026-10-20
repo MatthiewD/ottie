@@ -65,4 +65,10 @@ language: string | null,
  * What a download does when a file with its name is already in its
  * folder, unless the one adding it said (`existing` in `POST /jobs`).
  */
-existing: Existing, };
+existing: Existing, 
+/**
+ * While Ottie can't save to its database (disk full, a drive gone), the
+ * last error, in English; null when saving works. Not a setting: no
+ * change sets it, and `settingsChanged` tells when it changes.
+ */
+storageFailing: string | null, };

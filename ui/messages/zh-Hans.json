@@ -264,6 +264,7 @@
 	"set_link_copied": "已复制",
 	"set_link_label": "登录链接",
 	"read_only_note": "只读：此设备可以查看和播放下载，但不能更改。",
+	"storage_failing": "Ottie 无法保存下载列表：停止时更改可能会丢失。请释放一些磁盘空间，或检查驱动器。",
 	"reason_read_only": "此设备是只读的：不能更改任何内容。",
 	"reason_owner_only": "只有运行 Ottie 的电脑可以这样做。",
 	"reason_folder_not_allowed": "此设备不能把下载保存到 {folder}：只能保存到某个类别的文件夹，或设置中列出的文件夹。",

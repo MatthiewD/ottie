@@ -264,6 +264,7 @@
 	"set_link_copied": "Skopírované",
 	"set_link_label": "Prihlasovací odkaz",
 	"read_only_note": "Len na čítanie: toto zariadenie môže sťahovania zobraziť a prehrať, nie meniť.",
+	"storage_failing": "Ottie nemôže uložiť svoj zoznam sťahovaní: zmeny sa môžu pri jeho zastavení stratiť. Uvoľnite miesto na disku alebo skontrolujte jednotku.",
 	"reason_read_only": "Toto zariadenie má prístup len na čítanie: nemôže nič meniť.",
 	"reason_owner_only": "Toto môže len počítač, na ktorom beží Ottie.",
 	"reason_folder_not_allowed": "Toto zariadenie nemôže ukladať sťahovania do priečinka {folder}: len do priečinka niektorej kategórie alebo do priečinka uvedeného v Nastaveniach.",

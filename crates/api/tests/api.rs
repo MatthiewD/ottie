@@ -1187,6 +1187,7 @@ async fn settings_are_read_and_changed() {
         appearance: None,
         language: None,
         existing: Existing::Rename,
+        storage_failing: None,
     };
     assert_eq!(settings().await, defaults, "a new daemon offers the setup");
 

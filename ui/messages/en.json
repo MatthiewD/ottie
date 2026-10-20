@@ -264,6 +264,7 @@
 	"set_link_copied": "Copied",
 	"set_link_label": "Sign-in link",
 	"read_only_note": "Read-only: this device can see and play downloads, not change them.",
+	"storage_failing": "Ottie can’t save its list of downloads: changes may be lost when it stops. Free some disk space or check the drive.",
 	"reason_read_only": "This device is read-only: it can’t change anything.",
 	"reason_owner_only": "Only the computer running Ottie can do this.",
 	"reason_folder_not_allowed": "This device can’t save downloads in {folder}: only in a category’s folder or one listed in Settings.",

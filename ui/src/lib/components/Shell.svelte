@@ -8,6 +8,7 @@
 	import { page } from '$app/state';
 	import type { Settings } from '@ottie/api-types/Settings';
 	import Eye from '@lucide/svelte/icons/eye';
+	import HardDrive from '@lucide/svelte/icons/hard-drive';
 	import { AddRequest } from '#lib/addrequest.svelte.js';
 	import { appearance, setAppearance } from '#lib/appearance.svelte.js';
 	import { confirmation, targets, type Action } from '#lib/bulk.js';
@@ -265,6 +266,15 @@
 		<Setup />
 	{:else}
 		<main bind:this={main}>
+			{#if session.settings?.storageFailing}
+				<p class="failing" role="alert">
+					<HardDrive size={15} aria-hidden="true" />
+					<span>
+						{m.storage_failing()}
+						<span class="detail" dir="auto">{session.settings.storageFailing}</span>
+					</span>
+				</p>
+			{/if}
 			{#if session.readOnly}
 				<p class="looking">
 					<Eye size={15} aria-hidden="true" />
@@ -350,6 +360,31 @@
 		background: var(--sunken);
 		color: var(--muted);
 		font-size: 0.85rem;
+	}
+
+	/* Saving to the database fails: until it works again. */
+	.failing {
+		display: flex;
+		align-items: flex-start;
+		gap: 0.5rem;
+		margin: 0 0.75rem 0.5rem;
+		padding: 0.5rem 0.9rem;
+		border-radius: var(--radius-m);
+		background: var(--danger-bg);
+		color: var(--danger);
+		font-size: 0.85rem;
+	}
+
+	.failing :global(svg) {
+		flex: none;
+		margin-top: 0.1rem;
+	}
+
+	.failing .detail {
+		display: block;
+		font-family: var(--mono);
+		font-size: 0.8rem;
+		opacity: 0.85;
 	}
 
 	.error {

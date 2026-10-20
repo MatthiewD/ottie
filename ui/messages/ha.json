@@ -264,6 +264,7 @@
 	"set_link_copied": "An kwafa",
 	"set_link_label": "Mahaɗin shiga",
 	"read_only_note": "Karatu kawai: wannan na’ura za ta iya gani da kunna saukewa, amma ba za ta iya canza su ba.",
+	"storage_failing": "Ottie ba zai iya adana jerin saukewarsa ba: canje-canje na iya ɓacewa idan ya tsaya. Ka samar da sarari a faifai ko ka duba na’urar ajiya.",
 	"reason_read_only": "Wannan na’ura ta karatu ce kawai: ba za ta iya canza komai ba.",
 	"reason_owner_only": "Kwamfutar da Ottie ke aiki a kanta ce kawai za ta iya yin wannan.",
 	"reason_folder_not_allowed": "Wannan na’ura ba za ta iya ajiye saukewa a {folder} ba: sai a babban fayil na rukuni ko wanda aka jera a Saituna.",

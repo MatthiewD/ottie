@@ -264,6 +264,7 @@
 	"set_link_copied": "Copiado",
 	"set_link_label": "Enlace de acceso",
 	"read_only_note": "Solo lectura: este dispositivo puede ver y reproducir las descargas, no cambiarlas.",
+	"storage_failing": "Ottie no puede guardar su lista de descargas: los cambios podrían perderse cuando se detenga. Libera espacio en el disco o revisa la unidad.",
 	"reason_read_only": "Este dispositivo es de solo lectura: no puede cambiar nada.",
 	"reason_owner_only": "Solo el ordenador donde se ejecuta Ottie puede hacer esto.",
 	"reason_folder_not_allowed": "Este dispositivo no puede guardar descargas en {folder}: solo en la carpeta de una categoría o en una de las que figuran en Ajustes.",

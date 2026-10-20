@@ -264,6 +264,7 @@
 	"set_link_copied": "Nokopēts",
 	"set_link_label": "Pierakstīšanās saite",
 	"read_only_note": "Tikai lasīšana: šī ierīce var redzēt un atskaņot lejupielādes, bet nevar tās mainīt.",
+	"storage_failing": "Ottie nevar saglabāt savu lejupielāžu sarakstu: apstājoties izmaiņas var pazust. Atbrīvojiet vietu diskā vai pārbaudiet disku.",
 	"reason_read_only": "Šai ierīcei ir tikai lasīšanas piekļuve: tā neko nevar mainīt.",
 	"reason_owner_only": "To var izdarīt tikai dators, kurā darbojas Ottie.",
 	"reason_folder_not_allowed": "Šī ierīce nevar saglabāt lejupielādes mapē {folder}: tikai kādas kategorijas mapē vai mapē, kas norādīta iestatījumos.",

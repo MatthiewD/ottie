@@ -264,6 +264,7 @@
 	"set_link_copied": "Kopyalandı",
 	"set_link_label": "Oturum açma bağlantısı",
 	"read_only_note": "Salt okunur: bu cihaz indirmeleri görebilir ve oynatabilir, ama değiştiremez.",
+	"storage_failing": "Ottie indirme listesini kaydedemiyor: durduğunda değişiklikler kaybolabilir. Diskte yer açın veya sürücüyü kontrol edin.",
 	"reason_read_only": "Bu cihaz salt okunur: hiçbir şeyi değiştiremez.",
 	"reason_owner_only": "Bunu yalnızca Ottie’nin çalıştığı bilgisayar yapabilir.",
 	"reason_folder_not_allowed": "Bu cihaz indirmeleri {folder} klasörüne kaydedemez: yalnızca bir kategorinin klasörüne veya Ayarlar’da listelenen bir klasöre kaydedebilir.",

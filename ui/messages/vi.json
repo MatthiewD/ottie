@@ -264,6 +264,7 @@
 	"set_link_copied": "Đã sao chép",
 	"set_link_label": "Liên kết đăng nhập",
 	"read_only_note": "Chỉ xem: thiết bị này có thể xem và phát các bản tải xuống, nhưng không thể thay đổi chúng.",
+	"storage_failing": "Ottie không thể lưu danh sách tải xuống: các thay đổi có thể mất khi Ottie dừng. Hãy giải phóng dung lượng đĩa hoặc kiểm tra ổ đĩa.",
 	"reason_read_only": "Thiết bị này chỉ được xem: không thể thay đổi gì.",
 	"reason_owner_only": "Chỉ máy tính đang chạy Ottie mới làm được việc này.",
 	"reason_folder_not_allowed": "Thiết bị này không thể lưu bản tải xuống vào {folder}: chỉ vào thư mục của một danh mục hoặc thư mục có trong Cài đặt.",

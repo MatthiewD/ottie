@@ -35,6 +35,9 @@ pub struct Settings {
     /// What a download does when a file with its name is already in its
     /// folder, unless the one adding it chose (docs/decisions/0049).
     pub existing: Existing,
+    /// While saving to the database fails, the last error's text (not saved,
+    /// and no change sets it: the manager follows the store's writes).
+    pub storage_failing: Option<String>,
 }
 
 impl Default for Settings {
@@ -50,6 +53,7 @@ impl Default for Settings {
             appearance: None,
             language: None,
             existing: Existing::Rename,
+            storage_failing: None,
         }
     }
 }

@@ -958,6 +958,10 @@ impl<B: Backend> Actor<B> {
         self.check_times();
         self.schedule();
         let mut handles_alive = true;
+        // Saving to the database failing, or working again: clients are told
+        // through the settings.
+        let mut failing = self.store.failing();
+        let mut store_alive = true;
         let mut second = tokio::time::interval(Duration::from_secs(1));
         // After a sleep, the time missed isn't made up with a burst of samples.
         second.set_missed_tick_behavior(MissedTickBehavior::Skip);
@@ -984,11 +988,22 @@ impl<B: Backend> Actor<B> {
                     self.schedule();
                 }
                 _ = second.tick() => self.speed.tick(Instant::now()),
+                changed = failing.changed(), if store_alive => match changed {
+                    Ok(()) => {
+                        let now = failing.borrow_and_update().clone();
+                        self.storage_failing(now);
+                    }
+                    Err(_) => store_alive = false,
+                },
             }
             if self.shutdown.is_some() && !self.any_task_running() {
-                self.store.flush().await;
+                // Every save so far written, or the first that failed.
+                let flushed = self.store.flush().await.map_err(|err| match err {
+                    Error::StorageFailed(text) => text,
+                    other => other.to_string(),
+                });
                 for reply in self.shutdown.take().unwrap_or_default() {
-                    let _ = reply.send(Ok(()));
+                    let _ = reply.send(flushed.clone().map_err(Error::StorageFailed));
                 }
                 return;
             }
@@ -2132,6 +2147,16 @@ impl<B: Backend> Actor<B> {
 
     /// Applies `change`; if anything changed, saves the settings, puts them
     /// to use and tells the subscribers.
+    /// Saving to the database fails (with this text), or works again.
+    fn storage_failing(&mut self, now: Option<String>) {
+        if self.settings.storage_failing != now {
+            self.settings.storage_failing = now;
+            let _ = self
+                .events
+                .send(JobEvent::SettingsChanged(self.settings.clone()));
+        }
+    }
+
     fn change_settings(&mut self, change: SettingsChange) -> Settings {
         let before = self.settings.clone();
         self.settings.apply(change);

@@ -264,6 +264,7 @@
 	"set_link_copied": "Kopirano",
 	"set_link_label": "Poveznica za prijavu",
 	"read_only_note": "Samo čitanje: ovaj uređaj može vidjeti i reproducirati preuzimanja, ali ih ne može mijenjati.",
+	"storage_failing": "Ottie ne može spremiti svoj popis preuzimanja: promjene se mogu izgubiti kad se zaustavi. Oslobodite prostor na disku ili provjerite pogon.",
 	"reason_read_only": "Ovaj uređaj ima pristup samo za čitanje: ne može ništa mijenjati.",
 	"reason_owner_only": "To može samo računalo na kojem radi Ottie.",
 	"reason_folder_not_allowed": "Ovaj uređaj ne može spremati preuzimanja u {folder}: samo u mapu neke kategorije ili u mapu navedenu u Postavkama.",

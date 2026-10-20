@@ -264,6 +264,7 @@
 	"set_link_copied": "복사됨",
 	"set_link_label": "로그인 링크",
 	"read_only_note": "읽기 전용: 이 기기는 다운로드를 보고 재생할 수 있지만 변경할 수는 없습니다.",
+	"storage_failing": "Ottie가 다운로드 목록을 저장할 수 없습니다. 멈추면 변경 사항이 사라질 수 있습니다. 디스크 공간을 확보하거나 드라이브를 확인하세요.",
 	"reason_read_only": "이 기기는 읽기 전용입니다: 아무것도 변경할 수 없습니다.",
 	"reason_owner_only": "Ottie가 실행 중인 컴퓨터만 이 작업을 할 수 있습니다.",
 	"reason_folder_not_allowed": "이 기기는 {folder}에 다운로드를 저장할 수 없습니다: 카테고리 폴더나 설정에 나열된 폴더에만 저장할 수 있습니다.",

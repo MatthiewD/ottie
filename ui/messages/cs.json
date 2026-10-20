@@ -264,6 +264,7 @@
 	"set_link_copied": "Zkopírováno",
 	"set_link_label": "Přihlašovací odkaz",
 	"read_only_note": "Jen pro čtení: toto zařízení může stahování zobrazit a přehrát, ne měnit.",
+	"storage_failing": "Ottie nemůže uložit svůj seznam stahování: změny se mohou při jeho ukončení ztratit. Uvolněte místo na disku nebo zkontrolujte jednotku.",
 	"reason_read_only": "Toto zařízení má přístup jen pro čtení: nemůže nic měnit.",
 	"reason_owner_only": "Tohle může jen počítač, na kterém běží Ottie.",
 	"reason_folder_not_allowed": "Toto zařízení nemůže ukládat stahování do složky {folder}: jen do složky některé kategorie nebo do složky uvedené v Nastavení.",

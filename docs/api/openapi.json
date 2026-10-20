@@ -5593,6 +5593,13 @@
               }
             ]
           },
+          "storageFailing": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "While Ottie can't save to its database (disk full, a drive gone), the\nlast error, in English; null when saving works. Not a setting: no\nchange sets it, and `settingsChanged` tells when it changes."
+          },
           "streamMedia": {
             "type": "boolean",
             "description": "New video and music downloads start in streaming mode, unless the\none adding them says otherwise."

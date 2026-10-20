@@ -264,6 +264,7 @@
 	"set_link_copied": "Copiado",
 	"set_link_label": "Link de acesso",
 	"read_only_note": "Somente leitura: este dispositivo pode ver e reproduzir os downloads, não alterá-los.",
+	"storage_failing": "O Ottie não consegue salvar a lista de downloads: alterações podem se perder quando ele parar. Libere espaço em disco ou verifique a unidade.",
 	"reason_read_only": "Este dispositivo é somente leitura: não pode alterar nada.",
 	"reason_owner_only": "Só o computador onde o Ottie está rodando pode fazer isso.",
 	"reason_folder_not_allowed": "Este dispositivo não pode salvar downloads em {folder}: só na pasta de uma categoria ou em uma das listadas nas Configurações.",

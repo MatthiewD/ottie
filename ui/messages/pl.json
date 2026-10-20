@@ -264,6 +264,7 @@
 	"set_link_copied": "Skopiowano",
 	"set_link_label": "Link logowania",
 	"read_only_note": "Tylko odczyt: to urządzenie może przeglądać i odtwarzać pobierane pliki, ale nie może ich zmieniać.",
+	"storage_failing": "Ottie nie może zapisać listy pobieranych plików: zmiany mogą zostać utracone po jego zatrzymaniu. Zwolnij miejsce na dysku lub sprawdź dysk.",
 	"reason_read_only": "To urządzenie ma dostęp tylko do odczytu: nie może niczego zmienić.",
 	"reason_owner_only": "Może to zrobić tylko komputer, na którym działa Ottie.",
 	"reason_folder_not_allowed": "To urządzenie nie może zapisywać pobieranych plików w folderze {folder}: tylko w folderze kategorii lub w folderze z listy w Ustawieniach.",

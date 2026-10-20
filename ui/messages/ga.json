@@ -264,6 +264,7 @@
 	"set_link_copied": "Cóipeáilte",
 	"set_link_label": "Nasc sínithe isteach",
 	"read_only_note": "Léamh amháin: is féidir leis an ngléas seo íoslódálacha a fheiceáil agus a sheinm, ach ní féidir leis iad a athrú.",
+	"storage_failing": "Ní féidir le Ottie a liosta íoslódálacha a shábháil: d’fhéadfaí athruithe a chailleadh nuair a stopann sé. Saor spás diosca nó seiceáil an tiomántán.",
 	"reason_read_only": "Léamh amháin atá ag an ngléas seo: ní féidir leis aon rud a athrú.",
 	"reason_owner_only": "Ní féidir é seo a dhéanamh ach ón ríomhaire ar a bhfuil Ottie ag rith.",
 	"reason_folder_not_allowed": "Ní féidir leis an ngléas seo íoslódálacha a shábháil in {folder}: ach i bhfillteán catagóire nó i bhfillteán atá liostaithe sna Socruithe.",

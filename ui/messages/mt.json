@@ -264,6 +264,7 @@
 	"set_link_copied": "Ikkupjata",
 	"set_link_label": "Ħolqa tad-dħul",
 	"read_only_note": "Qari biss: dan l-apparat jista’ jara u jdoqq it-tniżżil, iżda ma jistax ibiddlu.",
+	"storage_failing": "Ottie ma jistax jissejvja l-lista tat-tniżżil tiegħu: il-bidliet jistgħu jintilfu meta jieqaf. Ħelles ftit spazju fuq id-diska jew iċċekkja d-drive.",
 	"reason_read_only": "Dan l-apparat huwa qari biss: ma jista’ jibdel xejn.",
 	"reason_owner_only": "Dan jista’ jagħmlu biss il-kompjuter fejn qed jaħdem Ottie.",
 	"reason_folder_not_allowed": "Dan l-apparat ma jistax isalva t-tniżżil f’{folder}: biss fil-folder ta’ kategorija jew f’wieħed elenkat fis-Settings.",

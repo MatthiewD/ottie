@@ -264,6 +264,7 @@
 	"set_link_copied": "A ti ṣe àdàkọ rẹ̀",
 	"set_link_label": "Ìjápọ̀ ìwọlé",
 	"read_only_note": "Kíkà nìkan: ẹ̀rọ yìí lè rí àti ṣe àwọn ìgbàsílẹ̀, ṣùgbọ́n kò lè yí wọn padà.",
+	"storage_failing": "Ottie kò lè fi àkójọ àwọn ìgbàsílẹ̀ rẹ̀ pamọ́: àwọn àyípadà lè sọnù nígbà tí ó bá dúró. Ṣe àyè díẹ̀ sílẹ̀ lórí díìsì tàbí ṣàyẹ̀wò ẹ̀rọ ìpamọ́.",
 	"reason_read_only": "Ẹ̀rọ yìí jẹ́ fún kíkà nìkan: kò lè yí ohunkóhun padà.",
 	"reason_owner_only": "Kọ̀ǹpútà tí Ottie ń ṣiṣẹ́ lórí rẹ̀ nìkan ló lè ṣe èyí.",
 	"reason_folder_not_allowed": "Ẹ̀rọ yìí kò lè fi ìgbàsílẹ̀ pamọ́ sí {folder}: àfi sínú fódà ẹ̀ka kan tàbí èyí tí a kọ sí Ètò.",

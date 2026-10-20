@@ -11,7 +11,7 @@ use std::time::{Duration, SystemTime, UNIX_EPOCH};
 use jiff::civil::{Date, Time};
 use reqwest::Url;
 use rusqlite::{Connection, Row, params};
-use tokio::sync::oneshot;
+use tokio::sync::{oneshot, watch};
 
 use crate::category::{BuiltIn, Category, CategoryId, CategorySettings};
 use crate::certificate::{CertificateId, TrustedCertificate};
@@ -526,6 +526,8 @@ pub(crate) struct Loaded {
 
 /// Handle to the database thread. The thread stops when this is dropped.
 pub struct Store {
+    /// The last write's error while writes fail: shown to clients.
+    failing: watch::Receiver<Option<String>>,
     ops: std_mpsc::Sender<Op>,
 }
 
@@ -543,7 +545,7 @@ enum Op {
     RemoveSlot(SlotId),
     SaveCertificate(TrustedCertificate),
     RemoveCertificate(CertificateId),
-    Flush(oneshot::Sender<()>),
+    Flush(oneshot::Sender<Result<(), Error>>),
 }
 
 impl Store {
@@ -567,6 +569,7 @@ impl Store {
     ) -> Result<Store, Error> {
         let (ops, requests) = std_mpsc::channel();
         let (ready, opened) = oneshot::channel();
+        let (failing, failures) = watch::channel(None);
         thread::Builder::new()
             .name("ottie-store".to_owned())
             .spawn(move || {
@@ -577,7 +580,7 @@ impl Store {
                 match conn {
                     Ok(conn) => {
                         let _ = ready.send(Ok(()));
-                        serve(conn, requests);
+                        serve(conn, requests, failing);
                     }
                     Err(err) => {
                         let _ = ready.send(Err(err));
@@ -585,7 +588,10 @@ impl Store {
                 }
             })?;
         opened.await.map_err(|_| Error::StoreStopped)??;
-        Ok(Store { ops })
+        Ok(Store {
+            ops,
+            failing: failures,
+        })
     }
 
     pub(crate) async fn load(&self) -> Result<Loaded, Error> {
@@ -682,92 +688,109 @@ impl Store {
         }
     }
 
-    /// Waits until every save queued before this call has been written.
-    pub(crate) async fn flush(&self) {
+    /// Waits until every save queued before this call has been written;
+    /// the first one that failed since the last flush, if one did.
+    pub(crate) async fn flush(&self) -> Result<(), Error> {
         let (reply, done) = oneshot::channel();
-        if self.ops.send(Op::Flush(reply)).is_ok() {
-            let _ = done.await;
+        self.ops
+            .send(Op::Flush(reply))
+            .map_err(|_| Error::StoreStopped)?;
+        done.await.map_err(|_| Error::StoreStopped)?
+    }
+
+    /// While writes fail, the last one's error: follow it to tell clients.
+    pub(crate) fn failing(&self) -> watch::Receiver<Option<String>> {
+        self.failing.clone()
+    }
+}
+
+/// Runs on the database thread until the `Store` is dropped. A write that
+/// fails is logged, kept for the next flush, and shown on `failing` until
+/// a later write works.
+fn serve(
+    mut conn: Connection,
+    requests: std_mpsc::Receiver<Op>,
+    failing: watch::Sender<Option<String>>,
+) {
+    // The first write that failed since the last flush.
+    let mut first: Option<String> = None;
+    while let Ok(op) = requests.recv() {
+        let written = match op {
+            Op::Load(reply) => {
+                let _ = reply.send(load_all(&conn));
+                continue;
+            }
+            Op::Flush(reply) => {
+                let _ = reply.send(
+                    first
+                        .take()
+                        .map_or(Ok(()), |err| Err(Error::StorageFailed(err))),
+                );
+                continue;
+            }
+            Op::Save(record) => save(&mut conn, std::slice::from_ref(&*record))
+                .map_err(|err| failed(err, &format!("could not save job {}", record.id))),
+            Op::SaveJobs(records) => save(&mut conn, &records)
+                .map_err(|err| failed(err, &format!("could not save {} jobs", records.len()))),
+            Op::SaveSettings(settings) => save_settings(&conn, &settings)
+                .map_err(|err| failed(err, "could not save settings")),
+            Op::SaveCategory(category) => save_category(&mut conn, &category)
+                .map_err(|err| failed(err, &format!("could not save category {}", category.id))),
+            Op::RemoveCategory(id) => conn
+                .execute("DELETE FROM categories WHERE id = ?1", [id.0])
+                .map(drop)
+                .map_err(|err| failed(err, &format!("could not remove category {id}"))),
+            Op::SaveView(view) => save_view(&mut conn, &view)
+                .map_err(|err| failed(err, &format!("could not save view {}", view.id))),
+            Op::RemoveView(id) => conn
+                .execute("DELETE FROM views WHERE id = ?1", [id.0])
+                .map(drop)
+                .map_err(|err| failed(err, &format!("could not remove view {id}"))),
+            Op::RemoveJob { id, last_id } => remove_job(&mut conn, id, last_id)
+                .map_err(|err| failed(err, &format!("could not remove job {id}"))),
+            Op::SaveSlot(slot) => save_slot(&conn, &slot)
+                .map_err(|err| failed(err, &format!("could not save time slot {}", slot.id))),
+            Op::RemoveSlot(id) => conn
+                .execute("DELETE FROM slots WHERE id = ?1", [id.0])
+                .map(drop)
+                .map_err(|err| failed(err, &format!("could not remove time slot {id}"))),
+            Op::SaveCertificate(certificate) => conn
+                .execute(
+                    "INSERT INTO certificates (id, host, fingerprint) VALUES (?1, ?2, ?3)",
+                    params![certificate.id.0, certificate.host, certificate.fingerprint],
+                )
+                .map(drop)
+                .map_err(|err| {
+                    failed(
+                        err,
+                        &format!("could not save certificate {}", certificate.id),
+                    )
+                }),
+            Op::RemoveCertificate(id) => conn
+                .execute("DELETE FROM certificates WHERE id = ?1", [id.0])
+                .map(drop)
+                .map_err(|err| failed(err, &format!("could not remove certificate {id}"))),
+        };
+        match written {
+            Ok(()) => {
+                failing.send_if_modified(|now| now.take().is_some());
+            }
+            Err(text) => {
+                first.get_or_insert_with(|| text.clone());
+                failing.send_if_modified(|now| {
+                    let new = now.as_deref() != Some(text.as_str());
+                    *now = Some(text);
+                    new
+                });
+            }
         }
     }
 }
 
-/// Runs on the database thread until the `Store` is dropped.
-fn serve(mut conn: Connection, requests: std_mpsc::Receiver<Op>) {
-    while let Ok(op) = requests.recv() {
-        match op {
-            Op::Load(reply) => {
-                let _ = reply.send(load_all(&conn));
-            }
-            Op::Save(record) => {
-                if let Err(err) = save(&mut conn, std::slice::from_ref(&*record)) {
-                    tracing::error!(id = %record.id, error = %err, "could not save job");
-                }
-            }
-            Op::SaveJobs(records) => {
-                if let Err(err) = save(&mut conn, &records) {
-                    let count = records.len();
-                    tracing::error!(count, error = %err, "could not save jobs");
-                }
-            }
-            Op::SaveSettings(settings) => {
-                if let Err(err) = save_settings(&conn, &settings) {
-                    tracing::error!(error = %err, "could not save settings");
-                }
-            }
-            Op::SaveCategory(category) => {
-                if let Err(err) = save_category(&mut conn, &category) {
-                    tracing::error!(id = %category.id, error = %err, "could not save category");
-                }
-            }
-            Op::RemoveCategory(id) => {
-                if let Err(err) = conn.execute("DELETE FROM categories WHERE id = ?1", [id.0]) {
-                    tracing::error!(%id, error = %err, "could not remove category");
-                }
-            }
-            Op::SaveView(view) => {
-                if let Err(err) = save_view(&mut conn, &view) {
-                    tracing::error!(id = %view.id, error = %err, "could not save view");
-                }
-            }
-            Op::RemoveView(id) => {
-                if let Err(err) = conn.execute("DELETE FROM views WHERE id = ?1", [id.0]) {
-                    tracing::error!(%id, error = %err, "could not remove view");
-                }
-            }
-            Op::RemoveJob { id, last_id } => {
-                if let Err(err) = remove_job(&mut conn, id, last_id) {
-                    tracing::error!(%id, error = %err, "could not remove job");
-                }
-            }
-            Op::SaveSlot(slot) => {
-                if let Err(err) = save_slot(&conn, &slot) {
-                    tracing::error!(id = %slot.id, error = %err, "could not save time slot");
-                }
-            }
-            Op::RemoveSlot(id) => {
-                if let Err(err) = conn.execute("DELETE FROM slots WHERE id = ?1", [id.0]) {
-                    tracing::error!(%id, error = %err, "could not remove time slot");
-                }
-            }
-            Op::SaveCertificate(certificate) => {
-                let saved = conn.execute(
-                    "INSERT INTO certificates (id, host, fingerprint) VALUES (?1, ?2, ?3)",
-                    params![certificate.id.0, certificate.host, certificate.fingerprint],
-                );
-                if let Err(err) = saved {
-                    tracing::error!(id = %certificate.id, error = %err, "could not save certificate");
-                }
-            }
-            Op::RemoveCertificate(id) => {
-                if let Err(err) = conn.execute("DELETE FROM certificates WHERE id = ?1", [id.0]) {
-                    tracing::error!(%id, error = %err, "could not remove certificate");
-                }
-            }
-            Op::Flush(reply) => {
-                let _ = reply.send(());
-            }
-        }
-    }
+/// Logs a failed write; its error's text, for those it's shown to.
+fn failed(err: impl std::fmt::Display, what: &str) -> String {
+    tracing::error!(error = %err, "{what}");
+    err.to_string()
 }
 
 fn prepare(conn: &mut Connection) -> Result<(), Error> {
@@ -1199,6 +1222,8 @@ fn load_settings(conn: &Connection) -> Result<Settings, Error> {
                 language: row.get(8)?,
                 // The CHECK allows only known names.
                 existing: Existing::parse(&row.get::<_, String>(11)?).unwrap_or_default(),
+                // Not saved: whether writing works now.
+                storage_failing: None,
             })
         },
     )?)
@@ -2005,6 +2030,7 @@ mod tests {
             }),
             language: Some("pt-BR".into()),
             existing: Existing::Ask,
+            storage_failing: None,
         };
         store.save_settings(changed.clone());
         assert_eq!(store.load().await.unwrap().settings, changed);
@@ -2315,7 +2341,7 @@ mod tests {
         let dir = tempfile::tempdir().unwrap();
         let path = dir.path().join("ottie.db");
         let store = Store::open(&path).await.unwrap();
-        store.flush().await;
+        store.flush().await.unwrap();
         assert_eq!(mode(&path), 0o600);
         let wal = dir.path().join("ottie.db-wal");
         if wal.exists() {

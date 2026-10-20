@@ -264,6 +264,7 @@
 	"set_link_copied": "Nukopijuota",
 	"set_link_label": "Prisijungimo nuoroda",
 	"read_only_note": "Tik skaityti: šis įrenginys gali matyti ir leisti atsisiuntimus, bet negali jų keisti.",
+	"storage_failing": "Ottie negali išsaugoti savo atsisiuntimų sąrašo: sustojus pakeitimai gali būti prarasti. Atlaisvinkite vietos diske arba patikrinkite diską.",
 	"reason_read_only": "Šis įrenginys gali tik skaityti: jis negali nieko keisti.",
 	"reason_owner_only": "Tai gali padaryti tik kompiuteris, kuriame veikia Ottie.",
 	"reason_folder_not_allowed": "Šis įrenginys negali įrašyti atsisiuntimų į {folder}: tik į kategorijos aplanką arba į aplanką, nurodytą nustatymuose.",
