@@ -40,6 +40,9 @@ impl JobState {
             (self, next),
             (Queued, Connecting | Paused | Cancelled | Scheduled)
                 | (Connecting, Downloading)
+                // Stopped for a hold (a start time, a slot) that went away
+                // while it stopped: back in the queue.
+                | (Connecting | Downloading, Queued)
                 | (
                     Connecting | Downloading,
                     Completed | Paused | Failed | Cancelled | Retrying | Scheduled
@@ -401,6 +404,8 @@ mod tests {
         assert!(Retrying.can_become(Paused));
         assert!(!Retrying.can_become(Downloading));
         assert!(!Queued.can_become(Retrying));
+        assert!(Downloading.can_become(Queued));
+        assert!(Connecting.can_become(Queued));
     }
 
     /// Moves the upper-case letters of `order`.

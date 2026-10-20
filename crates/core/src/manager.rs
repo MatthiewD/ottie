@@ -2708,7 +2708,13 @@ impl<B: Backend> Actor<B> {
         }
         match next {
             Some((state, problem)) => {
-                self.transition_or_log(id, state, problem);
+                let moved = self.transition_or_log(id, state, problem);
+                // A rule missing from `can_become`. Never leave the job
+                // running without a task: paused, it can be resumed.
+                debug_assert!(moved, "{id}: refused to become {state:?} as its task ended");
+                if !moved && self.jobs.get(&id).is_some_and(|job| job.state.is_running()) {
+                    self.transition_or_log(id, JobState::Paused, None);
+                }
                 match state {
                     JobState::Cancelled => self.delete_part(id).await,
                     JobState::Retrying => self.retry_when_due(id),

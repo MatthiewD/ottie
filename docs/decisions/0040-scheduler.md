@@ -18,7 +18,7 @@ Accepted 2026-10-14.
   - **API:** one resource per slot, like categories and views: `GET /slots` (the list in order, with the time zone), `POST /slots`, `PUT`/`DELETE /slots/{id}`, `POST /slots/reorder` (every ID, once, in the new order); `slotChanged`/`slotRemoved` events, also when a slot starts or stops applying. Removing a category removes its slots.
 - **A download's own start and stop time:** it waits until its start time, then joins the queue at its place; at its stop time it pauses (if it hasn't started by then, too). Each time is used once, then cleared.
 - **A new state, `Scheduled`:** a download waiting for its start time, or held by a slot.
-  - Queued ↔ Scheduled; Connecting | Downloading | Retrying → Scheduled (a slot stops it); Scheduled → Paused | Cancelled; Paused | Failed → Scheduled (resumed while held).
+  - Queued ↔ Scheduled; Connecting | Downloading | Retrying → Scheduled (a slot stops it); Scheduled → Paused | Cancelled; Paused | Failed → Scheduled (resumed while held). Connecting | Downloading → Queued: what held it went away while it was stopping (its start time cleared, the slot removed), so it goes back to the queue rather than wait (added 2026-10-20).
   - It's saved like the other states; at start, the daemon checks again whether each one is still held.
   - In the Downloads page it's one of the Waiting group's statuses, shown with its start time or the slot holding it.
   - Starting a scheduled download by hand clears its start time; if a slot holds it, it runs anyway, and slots leave it alone until it pauses, finishes or fails (a saved flag on the job). Which slot holds a download is saved on it, so that a slot keeping downloads paused does so even when it ended while Ottie wasn't running.

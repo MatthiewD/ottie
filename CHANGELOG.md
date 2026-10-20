@@ -22,6 +22,7 @@ What changes in Ottie from one version to the next: new features, changes and fi
 - Two Ottie using the same data folder on different ports (another `--port`, or a service and a copy started by hand) both carried on the same downloads, writing into the same files. The second one now stops at once and says Ottie is already running with that folder.
 - An FTP download from a server that doesn't give files' modification times could, after an interruption, join the start of one version of a file to the end of another of the same size. Such downloads now start again from the beginning instead of resuming, on one connection.
 - If a bug in Ottie stopped a download, pausing or cancelling it, and quitting Ottie, could wait forever. That download now fails with a message saying so, and everything else answers as usual.
+- A running download given a start time, or stopped by a time slot, that was then cleared or removed while it was still stopping, stayed "downloading" without downloading anything. It now goes back to the queue and starts again.
 
 ### Security
 
