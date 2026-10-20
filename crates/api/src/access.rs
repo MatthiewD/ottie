@@ -339,13 +339,20 @@ impl Access {
 pub(crate) struct Folders(Option<Vec<PathBuf>>);
 
 impl Folders {
-    /// The folder, if it's inside an allowed one.
+    /// The folder, if it's inside an allowed one. A `..` is refused: after
+    /// a link it means the link's target's parent, which the check can't
+    /// follow the way the system does (`link/../x` could leave the folder).
+    /// Without one, the system follows the same links at the check and at
+    /// the write.
     pub(crate) fn check(&self, folder: PathBuf) -> Result<PathBuf, Failure> {
         let Some(roots) = &self.0 else {
             return Ok(folder);
         };
+        let climbs = folder
+            .components()
+            .any(|component| component == Component::ParentDir);
         let resolved = resolve(&folder);
-        if roots.iter().any(|root| within(&resolved, root)) {
+        if !climbs && roots.iter().any(|root| within(&resolved, root)) {
             Ok(folder)
         } else {
             Err(Failure::new(
@@ -661,6 +668,14 @@ mod tests {
         assert!(folders.check(root.clone()).is_ok());
         assert!(folders.check(root.join("new").join("deeper")).is_ok());
         assert!(folders.check(root.join("..").join("Startup")).is_err());
+        // Even one that stays inside.
+        assert!(
+            folders
+                .check(root.join("new").join("..").join("x"))
+                .is_err()
+        );
+        // Only a device's folders are checked.
+        assert!(Folders(None).check(root.join("..")).is_ok());
         assert!(folders.check(dir.path().join("Downloads2")).is_err());
         assert!(Folders(None).check(dir.path().into()).is_ok());
     }
@@ -675,6 +690,16 @@ mod tests {
         std::os::unix::fs::symlink(&outside, root.join("link")).unwrap();
         let folders = Folders(Some(vec![resolve(&root)]));
         assert!(folders.check(root.join("link").join("x")).is_err());
+        // A link to a folder beside the allowed one, then `..`: back inside
+        // on paper, outside for the system (`out/../x`).
+        let beside = root.join("deep");
+        std::fs::create_dir(&beside).unwrap();
+        std::os::unix::fs::symlink(outside.join("."), beside.join("away")).unwrap();
+        assert!(
+            folders
+                .check(beside.join("away").join("..").join("x"))
+                .is_err()
+        );
     }
 
     #[test]
