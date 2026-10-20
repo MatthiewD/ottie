@@ -23,7 +23,8 @@ Accepted 2026-10-12.
   - `Display` gives the English wording, unchanged;
   - migration 6 stores it as `problem_kind` / `problem_number` / `problem_total` / `problem_detail`, next to the English `error`. Older failures become `other` with their text, and a problem that doesn't add up is read back as `other` rather than dropped;
   - the API sends `problem` (`{code: "httpStatus", status: 404}`) next to `error`. Stalls round up to whole seconds;
-  - network and disk details stay the system's English text.
+  - network and disk details stay the system's English text;
+  - a download's task that crashes (a panic: a bug in Ottie) fails the job with `Other`, its text "Ottie hit a bug and stopped this download: …" in English, rather than a kind of its own: it should never happen, and a kind means a migration and a text in every language (added 2026-10-20).
 - **Why a request was refused:** every error answer is `{"error": "English", "code": "...", ...details}`. Codes: `unauthorized`, `noSuchEndpoint`, `invalidBody`, `invalidUrl`, `relativeFolder`, `unsupportedScheme {scheme}`, `nonUtf8Path`, `noFolder {category}`, `invalidJobId {id}`, `jobNotFound {id}`, `invalidTransition {from, to}`, `categoryNotFound {id}`, `invalidCategoryName`, `invalidExtension {extension}`, `categoryNameTaken {name}`, `extensionTaken {extension, category}`, `cannotRemoveBuiltIn {category}`, `stopping`, `internal`. The UI translates those its screens can trigger.
 - Some common statuses get their own sentence (403, 404, 410, 429, 5xx).
 

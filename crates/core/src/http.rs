@@ -532,7 +532,7 @@ pub(crate) fn content_range_matches(
     };
     let end_ok = match (last, size) {
         (Some(last), _) => end == last,
-        (None, Some(size)) => end + 1 == size,
+        (None, Some(size)) => end.checked_add(1) == Some(size),
         (None, None) => true,
     };
     let size_ok = match (total, size) {
@@ -549,7 +549,8 @@ fn content_range(headers: &HeaderMap) -> Option<(u64, u64, Option<u64>)> {
         .and_then(parse_content_range)
 }
 
-/// Parses `bytes <start>-<end>/<size or *>`.
+/// Parses `bytes <start>-<end>/<size or *>`. A range that ends before it
+/// starts, or past the end of the file, describes nothing: `None`.
 fn parse_content_range(value: &str) -> Option<(u64, u64, Option<u64>)> {
     let (range, size) = value.strip_prefix("bytes ")?.split_once('/')?;
     let (start, end) = range.split_once('-')?;
@@ -557,7 +558,9 @@ fn parse_content_range(value: &str) -> Option<(u64, u64, Option<u64>)> {
         "*" => None,
         n => Some(n.parse().ok()?),
     };
-    Some((start.parse().ok()?, end.parse().ok()?, size))
+    let (start, end): (u64, u64) = (start.parse().ok()?, end.parse().ok()?);
+    let fits = start <= end && size.is_none_or(|size| end < size);
+    fits.then_some((start, end, size))
 }
 
 #[cfg(test)]
@@ -573,5 +576,23 @@ mod tests {
         assert_eq!(parse_content_range("bytes 10-99/*"), Some((10, 99, None)));
         assert_eq!(parse_content_range("bytes */100"), None);
         assert_eq!(parse_content_range("items 1-2/3"), None);
+        // Ranges that can't be.
+        assert_eq!(parse_content_range("bytes 99-10/100"), None);
+        assert_eq!(parse_content_range("bytes 10-100/100"), None);
+        assert_eq!(parse_content_range("bytes 0-18446744073709551615/0"), None);
+    }
+
+    #[test]
+    fn the_largest_numbers_dont_overflow() {
+        let mut headers = HeaderMap::new();
+        let max = u64::MAX;
+        // Asked from the start, to the end: once `end + 1`, which overflowed.
+        headers.insert(CONTENT_RANGE, format!("bytes 0-{max}/0").parse().unwrap());
+        assert!(!content_range_matches(&headers, 0, None, None));
+        headers.insert(
+            CONTENT_RANGE,
+            format!("bytes 0-{}/{max}", max - 1).parse().unwrap(),
+        );
+        assert!(content_range_matches(&headers, 0, None, Some(max)));
     }
 }

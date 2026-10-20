@@ -1853,13 +1853,18 @@ impl<B: Backend> Actor<B> {
         let from = job.download.dest_dir.clone();
         let finished = job.state == JobState::Completed;
         let internal = self.internal.clone();
-        tokio::spawn(async move {
-            let result = filename::relocate(&from, &name, finished, &to)
-                .await
-                .map(|name| (to, name));
-            // Fails only if the manager has stopped.
-            let _ = internal.send(Internal::Moved { id, result });
-        });
+        supervised(
+            async move {
+                filename::relocate(&from, &name, finished, &to)
+                    .await
+                    .map(|name| (to, name))
+            },
+            move |moved| {
+                let result = moved.unwrap_or_else(|panic| Err(io::Error::other(panic)));
+                // Fails only if the manager has stopped.
+                let _ = internal.send(Internal::Moved { id, result });
+            },
+        );
     }
 
     /// Ends a move: the job takes its new category and place, or stays as it
@@ -2615,28 +2620,45 @@ impl<B: Backend> Actor<B> {
         let playback = self.playbacks.of(id);
         playback.set_streaming(job.streaming);
 
-        tokio::spawn(async move {
-            let mut last_progress: Option<Instant> = None;
-            // Sends fail only if the manager is gone, and then nobody's listening.
-            let mut on_event = |event: Event| {
-                if let Event::Progress { .. } = event {
-                    if last_progress.is_some_and(|at| at.elapsed() < PROGRESS_INTERVAL) {
-                        return;
+        // What it hands back if it crashes: what it did to the file is
+        // unknown, so the next run starts over (no validator, no map: nothing
+        // to resume from).
+        let mut before = download.clone();
+        before.validator = None;
+        before.segments.clear();
+        before.downloaded = 0;
+        let report = internal.clone();
+        supervised(
+            async move {
+                let mut last_progress: Option<Instant> = None;
+                // Sends fail only if the manager is gone, and then nobody's listening.
+                let mut on_event = |event: Event| {
+                    if let Event::Progress { .. } = event {
+                        if last_progress.is_some_and(|at| at.elapsed() < PROGRESS_INTERVAL) {
+                            return;
+                        }
+                        last_progress = Some(Instant::now());
                     }
-                    last_progress = Some(Instant::now());
-                }
-                let _ = internal.send(Internal::Event { id, event });
-            };
-            let result = backend
-                .run(&mut download, &throttle, &playback, &cancel, &mut on_event)
-                .await;
-            drop(throttle);
-            let _ = internal.send(Internal::Ended {
-                id,
-                download: Box::new(download),
-                result,
-            });
-        });
+                    let _ = internal.send(Internal::Event { id, event });
+                };
+                let result = backend
+                    .run(&mut download, &throttle, &playback, &cancel, &mut on_event)
+                    .await;
+                drop(throttle);
+                (download, result)
+            },
+            move |ended| {
+                let (download, result) = match ended {
+                    Ok(ended) => ended,
+                    Err(panic) => (before, Err(Error::Crashed(panic))),
+                };
+                let _ = report.send(Internal::Ended {
+                    id,
+                    download: Box::new(download),
+                    result,
+                });
+            },
+        );
         true
     }
 
@@ -2907,6 +2929,33 @@ fn unix_now() -> u64 {
     SystemTime::now()
         .duration_since(UNIX_EPOCH)
         .map_or(0, |d| d.as_secs())
+}
+
+/// Runs `work` in a task of its own, then gives `ended` what it returned,
+/// or the text of its panic (a bug). The actor waits for the end of every
+/// download and move (pause, cancel, shutdown), so it must hear of it even
+/// when the task crashes; a dropped `JoinHandle` would tell nobody.
+fn supervised<T: Send + 'static>(
+    work: impl Future<Output = T> + Send + 'static,
+    ended: impl FnOnce(Result<T, String>) + Send + 'static,
+) {
+    let task = tokio::spawn(work);
+    tokio::spawn(async move {
+        let result = task.await.map_err(|err| {
+            let text = match err.try_into_panic() {
+                Ok(panic) => panic
+                    .downcast_ref::<&str>()
+                    .map(|text| (*text).to_owned())
+                    .or_else(|| panic.downcast_ref::<String>().cloned())
+                    .unwrap_or_else(|| "a panic".to_owned()),
+                // The runtime is shutting down: nobody's waiting.
+                Err(_) => "cancelled".to_owned(),
+            };
+            tracing::error!(%text, "a task crashed");
+            text
+        });
+        ended(result);
+    });
 }
 
 #[cfg(test)]

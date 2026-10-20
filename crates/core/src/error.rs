@@ -69,6 +69,11 @@ pub enum Error {
     #[error("the file kept changing on the server while downloading")]
     RemoteUnstable,
 
+    /// The download's task panicked: a bug in Ottie. The text is the
+    /// panic's message.
+    #[error("Ottie hit a bug and stopped this download: {0}")]
+    Crashed(String),
+
     #[error("file error: {0}")]
     Io(#[from] std::io::Error),
 
