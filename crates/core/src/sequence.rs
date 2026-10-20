@@ -106,7 +106,11 @@ impl Part {
             Part::Text(_) => 1,
             Part::Numbers {
                 first, last, step, ..
-            } => usize::try_from(first.abs_diff(*last) / step + 1).unwrap_or(usize::MAX),
+            } => (first.abs_diff(*last) / step)
+                // `[0-18446744073709551615]` holds one more than a u64 can count.
+                .checked_add(1)
+                .and_then(|count| usize::try_from(count).ok())
+                .unwrap_or(usize::MAX),
             Part::Letters { first, last, step } => {
                 // At most 26.
                 (u64::from(first.abs_diff(*last)) / step + 1) as usize
@@ -318,5 +322,15 @@ mod tests {
         assert_eq!(Sequence::parse("[1-20]{a,b,c}[a-e]").count(), 300);
         assert_eq!(Sequence::parse("plain").count(), 1);
         assert_eq!(links("plain"), ["plain"]);
+    }
+
+    #[test]
+    fn counting_every_u64_saturates() {
+        for link in [
+            "https://example.test/[0-18446744073709551615]",
+            "https://example.test/[18446744073709551615-0]",
+        ] {
+            assert_eq!(Sequence::parse(link).count(), usize::MAX, "{link}");
+        }
     }
 }
