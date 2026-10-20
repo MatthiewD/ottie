@@ -171,7 +171,8 @@ pub(crate) async fn add_many(
 /// each once, with what adding each would do. Anything of the form
 /// `scheme://…` counts, so links that can't be added are listed too, with
 /// why. Nothing is added. A POST, so links, which may carry tokens, never
-/// sit in an address or a log.
+/// sit in an address or a log. A device's `destDir` must be one it may
+/// write to: whether a file is there is never looked up anywhere else.
 #[utoipa::path(
     post,
     path = "/jobs/preview",
@@ -181,15 +182,23 @@ pub(crate) async fn add_many(
     responses(
         (status = OK, description = "The links found", body = Preview),
         (status = BAD_REQUEST, description = "`tooManyLinks` (more than the setting `maxBatch`) or `relativeFolder`", body = ApiError),
+        (status = FORBIDDEN, description = "`folderNotAllowed`: a device's `destDir` outside its folders", body = ApiError),
         (status = UNPROCESSABLE_ENTITY, description = "`invalidBody`", body = ApiError),
     )
 )]
 pub(crate) async fn preview(
     State(state): State<AppState>,
+    caller: Caller,
     body: Result<Json<PreviewLinks>, JsonRejection>,
 ) -> Result<Json<Preview>, Failure> {
     let Json(body) = body?;
-    let dest_dir = body.dest_dir.map(absolute_folder).transpose()?;
+    let dest_dir = match body.dest_dir {
+        Some(dir) => {
+            let folders = state.access.folders_for(&caller, &state.manager).await?;
+            Some(folders.check(absolute_folder(dir)?)?)
+        }
+        None => None,
+    };
     let links = state.manager.preview(&body.text, dest_dir).await?;
     Ok(Json(Preview {
         links: links.into_iter().map(Into::into).collect(),

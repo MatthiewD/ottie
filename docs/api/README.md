@@ -51,7 +51,7 @@ Or through the API, with this computer's token: `POST /access/devices` `{"name":
 
 A device's token is refused (`403`) where only this computer may act: managing devices and the folders they may use (`ownerOnly`). A **read-only** one may only `GET`, ask what links a text holds (`POST /jobs/preview`), which category a link gets (`POST /categories/match`) and make play links (`POST /jobs/{id}/stream`); anything else answers `403 readOnly`.
 
-A device may only have downloads written into **every category's folder and the folders listed** (`folderNotAllowed` otherwise, for `destDir` and a category's `folder`): those in `folders` in `config.toml`, and those chosen in Settings (`PUT /access/folders` `{"folders": ["/srv/downloads"]}`, this computer only). This computer isn't limited. `GET /access` tells any token who it is (`device`: null for this computer), whether it's `readOnly`, and the folders listed.
+A device may only have downloads written into **every category's folder and the folders listed** (`folderNotAllowed` otherwise, for `destDir` and a category's `folder`, and for the `destDir` of `POST /jobs/preview`, which looks for files already there): those in `folders` in `config.toml`, and those chosen in Settings (`PUT /access/folders` `{"folders": ["/srv/downloads"]}`, this computer only). This computer isn't limited. `GET /access` tells any token who it is (`device`: null for this computer), whether it's `readOnly`, and the folders listed.
 
 ## Conventions
 

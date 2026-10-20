@@ -1174,7 +1174,7 @@
         "tags": [
           "jobs"
         ],
-        "summary": "The links in some text (one per line, an email, a web page): in order,\neach once, with what adding each would do. Anything of the form\n`scheme://…` counts, so links that can't be added are listed too, with\nwhy. Nothing is added. A POST, so links, which may carry tokens, never\nsit in an address or a log.",
+        "summary": "The links in some text (one per line, an email, a web page): in order,\neach once, with what adding each would do. Anything of the form\n`scheme://…` counts, so links that can't be added are listed too, with\nwhy. Nothing is added. A POST, so links, which may carry tokens, never\nsit in an address or a log. A device's `destDir` must be one it may\nwrite to: whether a file is there is never looked up anywhere else.",
         "operationId": "previewLinks",
         "requestBody": {
           "content": {
@@ -1209,6 +1209,16 @@
           },
           "401": {
             "description": "`unauthorized`: no token, or the wrong one",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "`folderNotAllowed`: a device's `destDir` outside its folders",
             "content": {
               "application/json": {
                 "schema": {

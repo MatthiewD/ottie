@@ -1814,6 +1814,33 @@ async fn a_read_only_device_only_looks() {
 }
 
 #[tokio::test]
+async fn devices_look_for_files_only_where_they_may_write() {
+    let d = start().await;
+    let tv = d.add_device("TV", true).await;
+    let private = tempfile::tempdir().unwrap();
+    std::fs::write(private.path().join("secret.key"), "x").unwrap();
+    let preview = PreviewLinks {
+        text: format!("{}/secret.key", d.files),
+        dest_dir: Some(private.path().to_string_lossy().into_owned()),
+    };
+
+    let looked = d
+        .client
+        .post(d.url("/jobs/preview"))
+        .bearer_auth(&tv.token)
+        .json(&preview)
+        .send()
+        .await;
+    let (status, refused) = error_of(looked.unwrap()).await;
+    assert_eq!(status, StatusCode::FORBIDDEN);
+    assert!(matches!(refused.reason, Reason::FolderNotAllowed { .. }));
+    // This computer may look anywhere.
+    let looked = d.post("/jobs/preview").json(&preview).send().await.unwrap();
+    let links = looked.json::<Preview>().await.unwrap().links;
+    assert!(matches!(&links[..], [FoundLink::Link { exists: true, .. }]));
+}
+
+#[tokio::test]
 async fn devices_write_only_where_they_may() {
     let d = start().await;
     let laptop = d.add_device("Laptop", false).await;
