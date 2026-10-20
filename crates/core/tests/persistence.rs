@@ -572,3 +572,34 @@ async fn a_new_plan_is_saved_before_the_file_takes_its_full_size() {
     );
     assert_eq!(s.part_len(), 0, "the file never took its full size");
 }
+
+#[tokio::test]
+async fn a_download_finished_just_before_a_crash_is_found_finished() {
+    let s = setup().await;
+    let manager = s.launch().await;
+    let id = s.add(&manager).await;
+    wait_until(&manager, id, JobState::Completed).await;
+    manager.shutdown().await.unwrap();
+    // As if Ottie had stopped right after renaming the file: the database
+    // still says it's downloading.
+    let db = rusqlite::Connection::open(&s.db).unwrap();
+    db.execute(
+        "UPDATE jobs SET state = 'downloading', downloaded = 1000",
+        [],
+    )
+    .unwrap();
+    drop(db);
+
+    let asked = s.server.requests().len();
+    let manager = s.launch().await;
+    let job = wait_until(&manager, id, JobState::Completed).await;
+    assert_eq!(job.downloaded, SIZE as u64);
+    manager.shutdown().await.unwrap();
+    s.assert_complete();
+    assert_eq!(s.server.requests().len(), asked, "not downloaded again");
+    let db = rusqlite::Connection::open(&s.db).unwrap();
+    let state: String = db
+        .query_row("SELECT state FROM jobs", [], |row| row.get(0))
+        .unwrap();
+    assert_eq!(state, "completed", "saved as finished");
+}

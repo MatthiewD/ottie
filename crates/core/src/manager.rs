@@ -68,13 +68,20 @@ impl Manager {
     /// [`Manager::shutdown`] was called.
     pub async fn start(backend: impl Backend, store: Store) -> Result<Manager, Error> {
         let loaded = store.load().await?;
+        let settings = loaded.settings;
         let mut jobs = BTreeMap::new();
         let mut last_place = 0;
+        // Found finished on disk: saved as such once the manager runs.
+        let mut finished = Vec::new();
         for record in loaded.jobs {
             last_place = last_place.max(record.place);
-            jobs.insert(record.id, Job::restore(record).await);
+            let (id, was) = (record.id, record.state);
+            let job = Job::restore(record, settings.existing).await;
+            if job.state == JobState::Completed && was != JobState::Completed {
+                finished.push(id);
+            }
+            jobs.insert(id, job);
         }
-        let settings = loaded.settings;
         let (internal, internal_rx) = mpsc::unbounded_channel();
         let starved = internal.clone();
         let limiter = Limiter::new(settings.global_limit, move |id, waiting| {
@@ -113,7 +120,7 @@ impl Manager {
         let (commands, command_rx) = mpsc::channel(COMMAND_BUFFER);
         let (events, _) = broadcast::channel(EVENT_BUFFER);
         let playbacks = Playbacks::default();
-        let actor = Actor {
+        let mut actor = Actor {
             backend: Arc::new(backend),
             store,
             limiter,
@@ -137,6 +144,9 @@ impl Manager {
             internal,
             shutdown: None,
         };
+        for id in finished {
+            actor.save(id);
+        }
         tokio::spawn(actor.run(command_rx, internal_rx));
         Ok(Manager {
             commands,
@@ -799,10 +809,39 @@ struct Moving {
 /// Where a job's file is: its folder, and its name if it has one yet.
 type Place = (PathBuf, Option<String>);
 
+/// Finished, but Ottie stopped before it saved that (docs/decisions/0059):
+/// the `.part.ottie` was renamed to the job's name, and `Completed` never
+/// reached the database. Its part is gone and a file of its full size has
+/// its name. Not under Replace, where that may be the file it was to replace.
+async fn finished_on_disk(record: &JobRecord, existing: Existing) -> bool {
+    let download = &record.download;
+    if matches!(record.state, JobState::Completed | JobState::Cancelled)
+        || record.existing.unwrap_or(existing) == Existing::Replace
+    {
+        return false;
+    }
+    let (Some(name), Some(part), Some(total)) =
+        (&download.file_name, download.part_path(), download.total)
+    else {
+        return false;
+    };
+    let part_gone = matches!(tokio::fs::try_exists(&part).await, Ok(false));
+    let file = tokio::fs::metadata(download.dest_dir.join(name)).await;
+    part_gone && file.is_ok_and(|meta| meta.is_file() && meta.len() == total)
+}
+
 impl Job {
-    async fn restore(record: JobRecord) -> Job {
+    /// `existing`: the setting's answer to a name already taken.
+    async fn restore(record: JobRecord, existing: Existing) -> Job {
+        let found = finished_on_disk(&record, existing).await;
         let mut state = record.state;
         let mut download = record.download;
+        if found {
+            tracing::info!(id = %record.id, "found finished on disk");
+            state = JobState::Completed;
+            download.downloaded = download.total.unwrap_or(download.downloaded);
+            download.segments.clear();
+        }
         // Running (or about to retry) when Ottie stopped, whether it quit or
         // crashed: continue it.
         if state.is_running() || state == JobState::Retrying {
@@ -843,8 +882,9 @@ impl Job {
             gave_way: 0,
             waiting_for_bandwidth: false,
             restarts: 0,
-            start_at: record.start_at,
-            stop_at: record.stop_at,
+            // A finished job has no times left (`transition` clears them).
+            start_at: record.start_at.filter(|_| state != JobState::Completed),
+            stop_at: record.stop_at.filter(|_| state != JobState::Completed),
             ignores_slots: record.ignores_slots,
             held_by,
             existing: record.existing,
