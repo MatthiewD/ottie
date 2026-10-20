@@ -128,6 +128,61 @@ fn a_taken_port_stops_serve_before_it_opens_the_database() {
 }
 
 #[test]
+fn one_ottie_per_data_folder_whatever_the_port() {
+    use std::io::{BufRead, BufReader};
+
+    let dir = tempfile::tempdir().unwrap();
+    // Started with `--managed`: it says `ready` once it holds the folder.
+    let start = || {
+        let port = free_port().to_string();
+        let mut child = ottie(dir.path())
+            .args(["serve", "--managed", "--port", &port])
+            .stdin(Stdio::piped())
+            .stdout(Stdio::piped())
+            .stderr(Stdio::null())
+            .spawn()
+            .unwrap();
+        let stdout = child.stdout.take().unwrap();
+        let mut first = String::new();
+        BufReader::new(stdout).read_line(&mut first).unwrap();
+        assert_eq!(first.trim(), "ready");
+        Running(child)
+    };
+    let first = start();
+
+    let port = free_port().to_string();
+    let mut second = Running(
+        ottie(dir.path())
+            .args(["serve", "--port", &port])
+            .stdout(Stdio::null())
+            .stderr(Stdio::piped())
+            .spawn()
+            .unwrap(),
+    );
+    let started = Instant::now();
+    let status = loop {
+        if let Some(status) = second.0.try_wait().unwrap() {
+            break status;
+        }
+        assert!(
+            started.elapsed() < Duration::from_secs(15),
+            "a second Ottie runs on the same data folder"
+        );
+        std::thread::sleep(Duration::from_millis(20));
+    };
+    assert!(!status.success());
+    let message = std::io::read_to_string(second.0.stderr.take().unwrap()).unwrap();
+    assert!(
+        message.contains("already running with the data folder"),
+        "{message}"
+    );
+
+    // Killed, not stopped: the lock goes with it, the next start works.
+    drop(first);
+    let _again = start();
+}
+
+#[test]
 fn a_service_finds_why_it_stopped_in_its_log() {
     let dir = tempfile::tempdir().unwrap();
     let taken = std::net::TcpListener::bind("127.0.0.1:0").unwrap();

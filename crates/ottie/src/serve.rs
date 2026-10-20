@@ -13,7 +13,7 @@ use tokio::net::TcpListener;
 use tokio_util::sync::CancellationToken;
 use tracing_subscriber::EnvFilter;
 
-use crate::config::{self, CONFIG_FILE, DATABASE_FILE, DaemonArgs, Dirs, FileConfig};
+use crate::config::{self, CONFIG_FILE, DATABASE_FILE, DaemonArgs, Dirs, FileConfig, LOCK_FILE};
 use crate::token;
 
 #[derive(Args, Debug)]
@@ -98,6 +98,8 @@ async fn serve(
 
     fs::create_dir_all(&dirs.data)
         .with_context(|| format!("can't create {}", dirs.data.display()))?;
+    // Held until this function returns, after the downloads are saved.
+    let _lock = lock(&dirs.data)?;
     let database = dirs.data.join(DATABASE_FILE);
     let store = Store::open(&database)
         .await
@@ -146,6 +148,32 @@ async fn serve(
     tracing::info!("stopping: saving downloads");
     manager.shutdown().await?;
     Ok(())
+}
+
+/// One daemon per data folder: another Ottie on another port (another
+/// `--port`, config.toml) must not resume the same downloads into the same
+/// files. The system releases the lock when the process ends, even in a
+/// crash, so the file left behind never stops the next start.
+fn lock(data: &Path) -> Result<File> {
+    let path = data.join(LOCK_FILE);
+    let file = OpenOptions::new()
+        .create(true)
+        .truncate(false)
+        .write(true)
+        .open(&path)
+        .with_context(|| format!("can't open {}", path.display()))?;
+    match file.try_lock() {
+        Ok(()) => Ok(file),
+        Err(fs::TryLockError::WouldBlock) => anyhow::bail!(
+            "Ottie is already running with the data folder {} (on another port?)",
+            data.display()
+        ),
+        Err(fs::TryLockError::Error(err)) => {
+            // Some network folders can't lock: run as before, unguarded.
+            tracing::warn!(error = %err, "can't lock the data folder: make sure only one Ottie uses it");
+            Ok(file)
+        }
+    }
 }
 
 /// Until the user picks a folder for General, it's the OS's Downloads

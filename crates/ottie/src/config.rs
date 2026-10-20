@@ -13,6 +13,8 @@ use serde::Deserialize;
 pub const DEFAULT_PORT: u16 = 24068;
 pub const CONFIG_FILE: &str = "config.toml";
 pub const DATABASE_FILE: &str = "ottie.db";
+/// Locked by the daemon using the data folder (`serve.rs`).
+pub const LOCK_FILE: &str = "ottie.lock";
 
 /// Folders, from flags or environment variables; otherwise the OS's usual places.
 #[derive(Args, Debug, Clone, Default)]

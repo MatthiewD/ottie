@@ -132,7 +132,8 @@ crates/api/        ottie-api: axum router under /api/v1 (static UI serving from 
   tests/api.rs       end to end: real server + small file server, reqwest + tungstenite
 crates/ottie/      ottie: the binary  [exists]
   src/main.rs        the subcommands; its own tokio runtime (a Windows service hands its thread to the system first)
-  src/serve.rs       `ottie serve`: logging (or a log file), folders, token, database, General → Downloads folder
+  src/serve.rs       `ottie serve`: logging (or a log file), folders, token, the data folder's lock (one daemon each, 0008),
+                     database, General → Downloads folder
                      (or --downloads-dir), axum::serve, graceful stop (also the Windows service's Stop)
   src/open.rs        `ottie open`: browser on the UI, signed in (via a private redirect page); `ottie link`
   src/config.rs      folders (OS defaults / flags / OTTIE_* env / --system: the system service's), config.toml,
