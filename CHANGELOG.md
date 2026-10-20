@@ -20,6 +20,7 @@ What changes in Ottie from one version to the next: new features, changes and fi
 - A download that had to start over, and whose new start then failed (the server busy for a moment), could later be reported complete with parts of the file missing (zeros in their place). Starting over now empties the unfinished file at once, so the next try downloads it all again.
 - A file that appeared under a download's name just as it finished (another download, another program) could be replaced by it. The download now takes the next free name, `name (1).ext`, unless it was set to replace.
 - Two Ottie using the same data folder on different ports (another `--port`, or a service and a copy started by hand) both carried on the same downloads, writing into the same files. The second one now stops at once and says Ottie is already running with that folder.
+- An FTP download from a server that doesn't give files' modification times could, after an interruption, join the start of one version of a file to the end of another of the same size. Such downloads now start again from the beginning instead of resuming, on one connection.
 
 ### Security
 

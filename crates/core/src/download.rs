@@ -193,7 +193,9 @@ impl Download {
 pub enum Validator {
     ETag(String),
     LastModified(String),
-    /// `<size> <MDTM time>`, or `<size> -` from a server without `MDTM`.
+    /// `<size> <MDTM time>`. A server without `MDTM` gives none: the size
+    /// alone can't tell two versions apart. (Ottie 0.1.0 saved `<size> -`
+    /// then; such a job starts over, as its file seems changed.)
     Ftp(String),
 }
 

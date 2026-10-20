@@ -387,6 +387,31 @@ async fn another_certificate_isnt_trusted() {
 }
 
 #[tokio::test]
+async fn without_mdtm_it_never_joins_two_versions() {
+    let s = setup(300 * 1024, |b| {
+        b.modified = None;
+        b.drop_after = Some(100 * 1024);
+    })
+    .await;
+    let mut dl = s.download("ftp", None);
+    let (result, _) = s.run(ONE, &mut dl, None).await;
+    assert!(result.is_err());
+
+    // Another version of the same size: resuming would join the two.
+    let other = test_data(300 * 1024, 12);
+    s.server.configure(|b| b.body = other.clone());
+    let (result, events) = s.run(SEVERAL, &mut dl, None).await;
+    let Ok(Outcome::Completed { path }) = result else {
+        panic!("expected completion, got {result:?}");
+    };
+    assert!(std::fs::read(&path).unwrap() == other, "the file differs");
+    assert!(events.contains(&Event::Restarted(RestartReason::NotResumable)));
+    assert!(!dl.resumable, "the size alone proves nothing");
+    // One login each time: never split without MDTM.
+    assert_eq!(s.server.logins(), 2);
+}
+
+#[tokio::test]
 async fn without_size_it_downloads_on_one_connection() {
     let s = setup(300 * 1024, |b| b.size = false).await;
     let mut dl = s.download("ftp", None);

@@ -8,7 +8,8 @@
 //! fails with its fingerprint, so it can be trusted.
 //!
 //! A file can be resumed and split when the server gives its size and
-//! supports `REST STREAM`: each range is its own login, `REST` to its start,
+//! modification time (`SIZE`, `MDTM`) and supports `REST STREAM`: each range
+//! is its own login, `REST` to its start,
 //! `RETR`, and closed once it reaches its end. The size and modification time
 //! (`MDTM`) are asked again before each one and compared, as HTTP's `If-Range`.
 
@@ -402,13 +403,17 @@ impl Link {
             Err(Error::FtpReply { .. }) => None,
             Err(err) => return Err(err),
         };
+        // Both, or nothing proves the file unchanged: another version may
+        // have the same size. Without them, no resume and no splitting:
+        // each run starts from zero (docs/decisions/0054).
+        let modified = modified.filter(|text| !text.is_empty());
+        let validator = size
+            .zip(modified)
+            .map(|(size, modified)| Validator::Ftp(format!("{size} {modified}")));
         Ok(Facts {
             size,
-            validator: size.map(|size| {
-                let modified = modified.filter(|text| !text.is_empty());
-                Validator::Ftp(format!("{size} {}", modified.as_deref().unwrap_or("-")))
-            }),
-            ranges: ranges && size.is_some(),
+            ranges: ranges && validator.is_some(),
+            validator,
         })
     }
 
@@ -469,7 +474,8 @@ fn reply_text(body: &[u8]) -> String {
 struct Facts {
     size: Option<u64>,
     validator: Option<Validator>,
-    /// It has a size and the server can start where asked.
+    /// It has a size and a modification time, and the server can start
+    /// where asked.
     ranges: bool,
 }
 
