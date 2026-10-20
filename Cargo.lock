@@ -3552,6 +3552,7 @@ dependencies = [
  "bytes",
  "futures-util",
  "jiff",
+ "libc",
  "percent-encoding",
  "reqwest",
  "rusqlite",
@@ -3566,6 +3567,7 @@ dependencies = [
  "tokio-util",
  "tracing",
  "windows-registry",
+ "windows-sys 0.61.2",
 ]
 
 [[package]]

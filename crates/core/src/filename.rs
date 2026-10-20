@@ -7,6 +7,8 @@ use percent_encoding::percent_decode_str;
 use reqwest::Url;
 use tokio::fs::{self, File, OpenOptions};
 
+use crate::rename;
+
 const FALLBACK_NAME: &str = "download";
 /// Leaves room for a " (999)" suffix and `PART_SUFFIX` within common 255-byte limits.
 const MAX_NAME_BYTES: usize = 200;
@@ -220,8 +222,10 @@ pub async fn reserve(dir: &Path, name: &str, replace: bool) -> io::Result<(Strin
 }
 
 /// Renames the `.part.ottie` file to the first free name. Normally that's `name`,
-/// unless a file with that name appeared while we were downloading. With
-/// `replace`, it takes `name` whatever is there (the file is replaced).
+/// unless a file with that name appeared while we were downloading. Each
+/// name is taken only if it's free at the moment of the rename, so a file
+/// appearing at the last moment is never replaced (`rename::rename_new`).
+/// With `replace`, it takes `name` whatever is there (the file is replaced).
 pub async fn finalize(dir: &Path, name: &str, part: &Path, replace: bool) -> io::Result<String> {
     if replace {
         fs::rename(part, dir.join(name)).await?;
@@ -229,13 +233,21 @@ pub async fn finalize(dir: &Path, name: &str, part: &Path, replace: bool) -> io:
     }
     for n in 0..MAX_COLLISION_ATTEMPTS {
         let candidate = numbered(name, n);
-        let target = dir.join(&candidate);
-        if !fs::try_exists(&target).await? {
-            fs::rename(part, &target).await?;
-            return Ok(candidate);
+        match rename_new(part, &dir.join(&candidate)).await {
+            Ok(()) => return Ok(candidate),
+            Err(err) if err.kind() == io::ErrorKind::AlreadyExists => continue,
+            Err(err) => return Err(err),
         }
     }
     Err(no_free_name())
+}
+
+/// [`rename::rename_new`], off the async threads (as `tokio::fs` does).
+async fn rename_new(from: &Path, to: &Path) -> io::Result<()> {
+    let (from, to) = (from.to_owned(), to.to_owned());
+    tokio::task::spawn_blocking(move || rename::rename_new(&from, &to))
+        .await
+        .map_err(io::Error::other)?
 }
 
 /// Moves a download's file from folder `from` to folder `to`, under the first
@@ -500,6 +512,35 @@ mod tests {
         let name = finalize(dir.path(), "song.mp3", &part, true).await.unwrap();
         assert_eq!(name, "song.mp3");
         assert_eq!(std::fs::read(dir.path().join("song.mp3")).unwrap(), b"new");
+        assert!(!part.exists());
+    }
+
+    #[tokio::test]
+    async fn names_taken_meanwhile_are_left_alone() {
+        let dir = tempfile::tempdir().unwrap();
+        let (name, file) = reserve(dir.path(), "song.mp3", false).await.unwrap();
+        drop(file);
+        let part = dir.path().join(part_name(&name));
+        std::fs::write(&part, b"new").unwrap();
+        // Both appear while it downloads.
+        std::fs::write(dir.path().join("song.mp3"), b"first").unwrap();
+        std::fs::write(dir.path().join("song (1).mp3"), b"second").unwrap();
+        let name = finalize(dir.path(), "song.mp3", &part, false)
+            .await
+            .unwrap();
+        assert_eq!(name, "song (2).mp3");
+        assert_eq!(
+            std::fs::read(dir.path().join("song.mp3")).unwrap(),
+            b"first"
+        );
+        assert_eq!(
+            std::fs::read(dir.path().join("song (1).mp3")).unwrap(),
+            b"second"
+        );
+        assert_eq!(
+            std::fs::read(dir.path().join("song (2).mp3")).unwrap(),
+            b"new"
+        );
         assert!(!part.exists());
     }
 

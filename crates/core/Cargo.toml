@@ -33,6 +33,14 @@ tracing = "0.1.44"
 [target.'cfg(windows)'.dependencies]
 # The policy that turns off the Mark of the Web (docs/decisions/0045).
 windows-registry = "0.6.1"
+# A rename that never replaces a file (MoveFileExW without REPLACE_EXISTING;
+# docs/decisions/0049). The version the app and `ottie` use.
+windows-sys = { version = "0.61.2", features = ["Win32_Storage_FileSystem"] }
+
+[target.'cfg(any(target_os = "linux", target_os = "android", target_os = "macos"))'.dependencies]
+# A rename that never replaces a file: renameat2(RENAME_NOREPLACE),
+# renamex_np(RENAME_EXCL) (docs/decisions/0049). Already built for tokio.
+libc = "0.2.190"
 
 [dev-dependencies]
 axum = "0.8.9"

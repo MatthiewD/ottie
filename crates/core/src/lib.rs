@@ -18,6 +18,7 @@ mod links;
 mod manager;
 mod playback;
 mod problem;
+mod rename;
 mod segmented;
 mod sequence;
 mod settings;

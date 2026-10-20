@@ -18,6 +18,7 @@ What changes in Ottie from one version to the next: new features, changes and fi
 - In Firefox, when the browser finished a download before Ottie took it over, Ottie's copy is now removed. Ottie downloaded the file a second time.
 - In a browser that doesn't let pages keep data, another computer's Ottie added to the list now opens when chosen. Before, choosing it did nothing.
 - A download that had to start over, and whose new start then failed (the server busy for a moment), could later be reported complete with parts of the file missing (zeros in their place). Starting over now empties the unfinished file at once, so the next try downloads it all again.
+- A file that appeared under a download's name just as it finished (another download, another program) could be replaced by it. The download now takes the next free name, `name (1).ext`, unless it was set to replace.
 
 ### Security
 
