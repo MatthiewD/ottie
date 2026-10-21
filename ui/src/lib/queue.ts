@@ -31,6 +31,9 @@ export function waitingInOrder(jobs: Job[]): Job[] {
  * of them has a waiting download of its priority, not selected, just before
  * it (up, top) or after it (down, bottom). */
 export function canReorder(jobs: Job[], selected: Job[], to: Reorder): boolean {
+	if (selected.length === 0) {
+		return false;
+	}
 	const chosen = new Set(selected.map((job) => job.id));
 	const waiting = jobs.filter(isWaiting).sort(byQueue);
 	const earlier = to === 'up' || to === 'top';

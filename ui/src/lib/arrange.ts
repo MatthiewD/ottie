@@ -8,6 +8,7 @@ import type { SortDirection } from '@ottie/api-types/SortDirection';
 import type { SortKey } from '@ottie/api-types/SortKey';
 import { GROUPS, groupOf, type Group } from './filters';
 import { displayName, formatCount, formatSpeed } from './format';
+import { byCreation } from './jobs';
 import { m } from './paraglide/messages.js';
 import { getLocale, type Locale } from './paraglide/runtime.js';
 import { byQueue } from './queue';
@@ -39,9 +40,6 @@ export function sortBy(arrangement: Arrangement, sort: SortKey): Arrangement {
 	return { ...arrangement, sort, direction: FIRST_DIRECTION[sort] };
 }
 
-/** IDs sort by creation; `numeric` puts `…-10` after `…-9`. */
-const byAge = (a: Job, b: Job) => a.id.localeCompare(b.id, undefined, { numeric: true });
-
 /** The size to sort by: unknown until the server says (a finished download
  * knows it). */
 function size(job: Job): number | null {
@@ -55,6 +53,8 @@ export function sortJobs(
 	locale: Locale = getLocale()
 ): Job[] {
 	const sign = direction === 'asc' ? 1 : -1;
+	// Made once: `localeCompare` with options makes one for each comparison.
+	const names = new Intl.Collator(locale, { numeric: true, sensitivity: 'base' });
 	/** Unknown values go last either way; ties, newest first. */
 	const numbers = (value: (job: Job) => number | null) => (a: Job, b: Job) => {
 		const x = value(a);
@@ -66,16 +66,11 @@ export function sortJobs(
 	};
 	const compare: (a: Job, b: Job) => number =
 		sort === 'added'
-			? (a, b) => sign * byAge(a, b)
+			? (a, b) => sign * byCreation(a, b)
 			: sort === 'name'
-				? (a, b) =>
-						sign *
-						displayName(a).localeCompare(displayName(b), locale, {
-							numeric: true,
-							sensitivity: 'base'
-						})
+				? (a, b) => sign * names.compare(displayName(a), displayName(b))
 				: numbers(sort === 'size' ? size : fraction);
-	return [...jobs].sort((a, b) => compare(a, b) || byAge(b, a));
+	return [...jobs].sort((a, b) => compare(a, b) || byCreation(b, a));
 }
 
 /** A run of rows: one group, or the whole list (`group` null). */

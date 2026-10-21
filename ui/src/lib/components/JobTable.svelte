@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { tick } from 'svelte';
 	import type { Job } from '@ottie/api-types/Job';
 	import ArrowDown from '@lucide/svelte/icons/arrow-down';
 	import ArrowUp from '@lucide/svelte/icons/arrow-up';
@@ -12,6 +13,7 @@
 	import { shuffle } from '#lib/moving.svelte.js';
 	import { m } from '#lib/paraglide/messages.js';
 	import { canDrop, carried, type Reorder } from '#lib/queue.js';
+	import { DRAW_ALL_UP_TO, drawn, lines, place, scrollFor, type Sizes } from '#lib/rows.js';
 	import { NOTHING, click, selectAll, type Selection } from '#lib/selection.js';
 	import JobRow from './JobRow.svelte';
 
@@ -56,8 +58,8 @@
 	let rows = $derived(sections.flatMap((section) => section.jobs));
 	let order = $derived(rows.map((job) => job.id));
 	let byId = $derived(new Map(rows.map((job) => [job.id, job])));
-	let all = $derived(order.length > 0 && selection.ids.size === order.length);
-	let some = $derived(selection.ids.size > 0 && !all);
+	let everything = $derived(order.length > 0 && selection.ids.size === order.length);
+	let some = $derived(selection.ids.size > 0 && !everything);
 
 	/** A drag in the queue under way: what it carries, and where it would
 	 * drop (next to a waiting download of the same priority). */
@@ -73,6 +75,69 @@
 	);
 	/** Near the list's top or bottom edge, a drag scrolls it. */
 	const EDGE = 40;
+
+	// A long list draws only the rows in view, and this much more above and
+	// below, in pixels (docs/decisions/0061).
+	const MARGIN = 600;
+	let windowed = $derived(rows.length > DRAW_ALL_UP_TO);
+	let all = $derived(windowed ? lines(sections) : []);
+	/** Measured once rows are on the page; until then, from the style. */
+	let sizes: Sizes = $state.raw({ heading: 42, row: 42, gap: 2 });
+	let scrolled = $state(0);
+	let seen = $state(0);
+	/** Where the first line starts in the table (under its header). */
+	let origin = $state(0);
+	let view = $derived(windowed ? drawn(all, sizes, scrolled - origin, seen, MARGIN) : null);
+
+	// The rows drawn give the real sizes (the phone layout's differ).
+	$effect(() => {
+		if (!view || !table) {
+			return;
+		}
+		const first = table.tBodies[0]?.rows[0];
+		if (first) {
+			origin = first.offsetTop;
+		}
+		const row = table.querySelector<HTMLElement>('tr[data-id]');
+		const next = row?.nextElementSibling;
+		const heading = table.querySelector<HTMLElement>('tr.group');
+		const measured = {
+			row: row?.getBoundingClientRect().height ?? sizes.row,
+			gap:
+				row && next instanceof HTMLElement && next.matches('tr[data-id]')
+					? next.getBoundingClientRect().top - row.getBoundingClientRect().bottom
+					: sizes.gap,
+			heading: heading?.getBoundingClientRect().height ?? sizes.heading
+		};
+		const close = (a: number, b: number) => Math.abs(a - b) < 0.5;
+		if (
+			!close(measured.row, sizes.row) ||
+			!close(measured.gap, sizes.gap) ||
+			!close(measured.heading, sizes.heading)
+		) {
+			sizes = measured;
+		}
+	});
+
+	/** Scrolls the list so the download's row is in view, as little as
+	 * needed (a long list draws it first). */
+	export async function reveal(id: string) {
+		if (view && scroller && table) {
+			const index = all.findIndex((line) => line.kind === 'job' && line.job.id === id);
+			if (index >= 0) {
+				const spot = place(all, sizes, index);
+				scroller.scrollTop = scrollFor(
+					{ top: spot.top + origin, height: spot.height },
+					scroller.scrollTop,
+					scroller.clientHeight,
+					table.tHead?.offsetHeight ?? 0
+				);
+				scrolled = scroller.scrollTop;
+				await tick();
+			}
+		}
+		table?.querySelector(`tr[data-id="${CSS.escape(id)}"]`)?.scrollIntoView({ block: 'nearest' });
+	}
 
 	function grab(job: Job, event: PointerEvent) {
 		if (event.button !== 0) {
@@ -132,6 +197,41 @@
 	}
 </script>
 
+{#snippet heading(section: Section)}
+	{#if section.group !== null}
+		<tr class="group {section.group}" data-flip="group {section.group}">
+			<th colspan="10" scope="rowgroup">
+				<span class="heading">
+					<span class="dot" aria-hidden="true"></span>
+					<span class="title">{groupName(section.group)}</span>
+					<span class="count">{formatCount(section.jobs.length)}</span>
+					<span class="note">{note(section.group)}</span>
+				</span>
+			</th>
+		</tr>
+	{/if}
+{/snippet}
+
+{#snippet row(job: Job, section: Section)}
+	<JobRow
+		{job}
+		selected={selection.ids.has(job.id)}
+		category={categories[job.category] ? categoryName(categories[job.category]) : ''}
+		speed={currentSpeed(rates[job.id], now)}
+		{now}
+		onClick={(keys) => onSelect(click(selection, job.id, keys, order))}
+		onRun={(action) => onRun(action, [job])}
+		onOpen={onOpen && canOpen(job) ? () => onOpen(job) : null}
+		grip={arrangement.grouped}
+		movable={section.group === 'waiting' && !readOnly}
+		carried={drag?.jobs.some((each) => each.id === job.id) ?? false}
+		drop={landing(job.id)}
+		fades={!windowed}
+		onGrab={(event) => grab(job, event)}
+		onStep={(to) => onReorder([job.id], to)}
+	/>
+{/snippet}
+
 {#snippet sortable(sort: SortKey, label: string)}
 	<button class="sort" class:on={arrangement.sort === sort} onclick={() => onSort(sort)}>
 		{label}
@@ -147,7 +247,17 @@
 
 <svelte:window onpointermove={move} onpointerup={drop} onpointercancel={() => (drag = null)} />
 
-<div class="scroller" class:dragging={drag !== null} bind:this={scroller}>
+<div
+	class="scroller"
+	class:dragging={drag !== null}
+	bind:this={scroller}
+	bind:clientHeight={seen}
+	onscroll={() => {
+		if (windowed && scroller) {
+			scrolled = scroller.scrollTop;
+		}
+	}}
+>
 	<table bind:this={table}>
 		<thead>
 			<tr>
@@ -157,10 +267,10 @@
 				<th class="check">
 					<input
 						type="checkbox"
-						checked={all}
+						checked={everything}
 						indeterminate={some}
 						aria-label={m.select_all()}
-						onchange={() => onSelect(all ? NOTHING : selectAll(order))}
+						onchange={() => onSelect(everything ? NOTHING : selectAll(order))}
 					/>
 				</th>
 				<th class="name" aria-sort={sorted('name')}>{@render sortable('name', m.col_name())}</th>
@@ -177,40 +287,33 @@
 				<th class="actions"></th>
 			</tr>
 		</thead>
-		{#each sections as section (section.group)}
+		{#if view}
+			<!-- Only the rows in view; stand-ins take the others' room. -->
 			<tbody>
-				{#if section.group !== null}
-					<tr class="group {section.group}" data-flip="group {section.group}">
-						<th colspan="10" scope="rowgroup">
-							<span class="heading">
-								<span class="dot" aria-hidden="true"></span>
-								<span class="title">{groupName(section.group)}</span>
-								<span class="count">{formatCount(section.jobs.length)}</span>
-								<span class="note">{note(section.group)}</span>
-							</span>
-						</th>
-					</tr>
+				{#if view.from > 0}
+					<tr class="stand-in" aria-hidden="true" style:height="{view.above}px"></tr>
 				{/if}
-				{#each section.jobs as job (job.id)}
-					<JobRow
-						{job}
-						selected={selection.ids.has(job.id)}
-						category={categories[job.category] ? categoryName(categories[job.category]) : ''}
-						speed={currentSpeed(rates[job.id], now)}
-						{now}
-						onClick={(keys) => onSelect(click(selection, job.id, keys, order))}
-						onRun={(action) => onRun(action, [job])}
-						onOpen={onOpen && canOpen(job) ? () => onOpen(job) : null}
-						grip={arrangement.grouped}
-						movable={section.group === 'waiting' && !readOnly}
-						carried={drag?.jobs.some((each) => each.id === job.id) ?? false}
-						drop={landing(job.id)}
-						onGrab={(event) => grab(job, event)}
-						onStep={(to) => onReorder([job.id], to)}
-					/>
+				{#each all.slice(view.from, view.to) as line (line.key)}
+					{#if line.kind === 'heading'}
+						{@render heading(line.section)}
+					{:else}
+						{@render row(line.job, line.section)}
+					{/if}
 				{/each}
+				{#if view.to < all.length}
+					<tr class="stand-in" aria-hidden="true" style:height="{view.below}px"></tr>
+				{/if}
 			</tbody>
-		{/each}
+		{:else}
+			{#each sections as section (section.group)}
+				<tbody>
+					{@render heading(section)}
+					{#each section.jobs as job (job.id)}
+						{@render row(job, section)}
+					{/each}
+				</tbody>
+			{/each}
+		{/if}
 	</table>
 </div>
 
@@ -423,7 +526,8 @@
 		}
 
 		.group,
-		.group th {
+		.group th,
+		.stand-in {
 			display: block;
 		}
 

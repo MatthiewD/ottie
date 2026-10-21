@@ -94,9 +94,12 @@ export function appear(_node: Element): TransitionConfig {
 
 /** A row going away: it fades where it was while the others slide into its
  * place (`shuffle`), mostly gone before they reach it. Only opacity:
- * `shuffle` holds it in place with `transform`. */
-export function leave(_node: Element): TransitionConfig {
-	return moving() ? { duration: QUICK, easing: cubicOut, css: (t) => `opacity: ${t}` } : STILL;
+ * `shuffle` holds it in place with `transform`. With `fades` false, it goes
+ * at once. */
+export function leave(_node: Element, fades = true): TransitionConfig {
+	return moving() && fades
+		? { duration: QUICK, easing: cubicOut, css: (t) => `opacity: ${t}` }
+		: STILL;
 }
 
 /** Runs `before` ahead of the page's update after `watch()` changes, and

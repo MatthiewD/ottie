@@ -44,6 +44,7 @@ What changes in Ottie from one version to the next: new features, changes and fi
 - A file moved to a category's folder on another drive is now written to that drive for sure before the original is deleted, so a power cut at that moment can't lose it.
 - A large file downloaded in order (streaming mode, on by itself for videos and music) made Ottie work harder and harder as it went: tens of gigabytes in, it kept a processor core busy, and the pages following it received ever larger updates. It now takes the same small effort from start to end.
 - Moving many downloads at once to a category whose folder is on another drive copied all their files at the same time, so each one took longer. Two are now copied at a time, the others waiting their turn; quitting Ottie leaves those still waiting where they were.
+- With thousands of downloads in the list, the Downloads page took seconds to appear (8 s for 10,000; 100,000 never appeared), slowed the computer even while nothing happened, and took a moment to answer each click. It now shows only the rows in view, and appears within a second or two even with 100,000.
 
 ### Security
 

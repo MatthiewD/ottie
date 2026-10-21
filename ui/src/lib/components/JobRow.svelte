@@ -41,6 +41,9 @@
 		carried: boolean;
 		/** Where a drag would drop, next to this row. */
 		drop: 'before' | 'after' | null;
+		/** It fades as it goes; not in a long list, where it also goes when
+		 * scrolled out of sight (docs/decisions/0061). */
+		fades: boolean;
 		onGrab: (event: PointerEvent) => void;
 		/** The arrow keys on its grip. */
 		onStep: (to: 'up' | 'down') => void;
@@ -59,6 +62,7 @@
 		movable,
 		carried,
 		drop,
+		fades,
 		onGrab,
 		onStep
 	}: Props = $props();
@@ -119,7 +123,7 @@
 	class:drop-after={drop === 'after'}
 	data-id={job.id}
 	data-flip={job.id}
-	out:leave
+	out:leave={fades}
 	onclick={click}
 	ondblclick={onOpen ? doubleClick : undefined}
 >

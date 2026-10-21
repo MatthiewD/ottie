@@ -48,10 +48,19 @@ export function applyEvent(jobs: Jobs, event: ApiEvent): boolean {
 	}
 }
 
-/** Newest first, so what you just added is at the top. IDs sort by creation
- * time; `numeric` makes `…-10` come after `…-9`. */
+/** IDs sort by creation time; `numeric` makes `…-10` come after `…-9`.
+ * One collator for every comparison: `localeCompare` with options makes a
+ * new one each time, and sorting 10,000 downloads took a third of a second. */
+const IDS = new Intl.Collator(undefined, { numeric: true });
+
+/** Oldest first. */
+export function byCreation(a: Job, b: Job): number {
+	return IDS.compare(a.id, b.id);
+}
+
+/** Newest first, so what you just added is at the top. */
 export function newestFirst(jobs: Jobs): Job[] {
-	return Object.values(jobs).sort((a, b) => b.id.localeCompare(a.id, undefined, { numeric: true }));
+	return Object.values(jobs).sort((a, b) => byCreation(b, a));
 }
 
 /** How much a new measurement moves the shown speed (the rest is history), so

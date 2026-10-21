@@ -43,6 +43,9 @@
 		readOnly = false
 	}: Props = $props();
 	const downloads = resolve('/downloads');
+	/** Any time: what `count` gets for a pill not by date, so only those by
+	 * date are counted again as the clock moves. */
+	const EPOCH = new Date(0);
 
 	let pills = $derived(quickFilters(categories));
 	let opened = $state(false);
@@ -164,7 +167,9 @@
 		{#if view}<Bookmark size={13} aria-hidden="true" />{/if}
 		<span class="label">
 			<span dir="auto">{name}</span>
-			<span class="count">{formatCount(count(jobs, target, now))}</span>
+			<span class="count"
+				>{formatCount(count(jobs, target, target.added === 'any' ? EPOCH : now))}</span
+			>
 		</span>
 	</a>
 {/snippet}

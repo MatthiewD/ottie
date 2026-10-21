@@ -47,6 +47,8 @@
 
 	const { session, run } = useApp();
 	const downloads = resolve('/downloads');
+	/** Any time: what `matches` gets when no filter is by date. */
+	const EPOCH = new Date(0);
 
 	// Read from the address; set at once when changed here, so the next click
 	// builds on it even before the address has caught up.
@@ -71,8 +73,16 @@
 	 * the list shows it in its new place (its index there before the move). */
 	let following: { id: string; index: number } | null = null;
 
-	let today = $derived(new Date(session.now));
-	let shown = $derived(session.list.filter((job) => matches(job, filters, today)));
+	// To the minute: "today" and "the past 7 days" need no more, and the
+	// list isn't filtered and sorted again every second.
+	let minute = $derived(Math.floor(session.now / 60_000));
+	let today = $derived(new Date(minute * 60_000));
+	// Only a filter by date reads the clock: without one, the list isn't
+	// filtered again every minute.
+	let shown = $derived.by(() => {
+		const now = filters.added === 'any' ? EPOCH : today;
+		return session.list.filter((job) => matches(job, filters, now));
+	});
 	let sections = $derived(arrange(shown, arrangement));
 	let order = $derived(sections.flatMap((section) => section.jobs.map((job) => job.id)));
 	// Downloads that were removed or left the view drop out of the selection.
@@ -85,6 +95,7 @@
 	// The panel under the list shows the one selected download.
 	let picked = $derived(selected.length === 1 ? selected[0] : null);
 	let pane: HTMLElement | undefined = $state();
+	let list: ReturnType<typeof JobTable> | undefined = $state();
 	// The details and their empty state take each other's place smoothly, as
 	// do two downloads' details of different heights (docs/decisions/0048).
 	swaps(
@@ -103,9 +114,12 @@
 	let resumable = $derived(resumeTargets(session.list));
 	/** In the desktop app, a download's file and folder open (docs/decisions/0045). */
 	const opens = canOpenFiles();
+	// Apart from the speed, which changes every second: counting the
+	// running ones goes through every download.
+	let running = $derived(session.list.filter(isActive).length);
 	let facts = $derived({
 		speed: session.history.at(-1) ?? 0,
-		running: session.list.filter(isActive).length,
+		running,
 		slots: session.settings?.maxConcurrent ?? null
 	});
 
@@ -247,9 +261,8 @@
 		}
 		await tick();
 		if (id !== null) {
-			document
-				.querySelector(`tr[data-id="${CSS.escape(id)}"]`)
-				?.scrollIntoView({ block: 'nearest' });
+			// A long list draws only the rows in view: it scrolls to it first.
+			await list?.reveal(id);
 		}
 	}
 
@@ -339,6 +352,7 @@
 			</div>
 		{:else}
 			<JobTable
+				bind:this={list}
 				{sections}
 				{arrangement}
 				selection={current}

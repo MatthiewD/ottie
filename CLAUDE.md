@@ -264,6 +264,7 @@ ui/                SvelteKit SPA shared by all front ends (pnpm package `ui`)  [
                      per device), sync.ts (following the shared look + language),
                      playlist.ts (a play link as a .m3u, saved through the browser, 0031),
                      tray.ts (the tray menu's status line and its running downloads),
+                     rows.ts (which rows a long Downloads list draws: those in view, stand-ins for the rest, 0061),
                      queue.ts (queue order, the waiting ones in it, whether up/down would move anything, what a drag
                      carries and where it may drop, 0032),
                      startup.ts (the sign-in choices, for Settings and Setup, 0039),
@@ -309,7 +310,7 @@ ui/                SvelteKit SPA shared by all front ends (pnpm package `ui`)  [
                        by two: running rows filling up, waiting ones in queue order, JobSummary rows),
                        Downloads (its keys, 0046; AddCard, then one pane: Toolbar (Pause all / Resume all) + MoveMenu + FinishMenu (desktop app), QuickFilters (with the
                        saved views' pills + their menu) or FilterPanel, ViewDialog (name a view),
-                       JobTable (group rows, sortable headers, drag in the Waiting group) + JobRow
+                       JobTable (group rows, sortable headers, drag in the Waiting group; over 200 downloads only the rows in view, 0061) + JobRow
                        (a double-click opens a finished file, desktop app),
                        JobDetails under it for the one selected download (header bar with Open and Show
                        in folder in the desktop app; its facts, priority and
