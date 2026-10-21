@@ -16,6 +16,11 @@ use tempfile::TempDir;
 use tokio_util::sync::CancellationToken;
 
 const SIZE: usize = 2 * 1024 * 1024;
+/// Between chunks, for tests that act on progress mid-run: SIZE's 128
+/// chunks over 4 connections take ~1 s, so several reports (every 200 ms)
+/// come before the end on any system. 2 ms ended in ~60 ms on Linux, before
+/// the first one (Windows' timer step made it last ~0.5 s).
+const SLOW_MS: u64 = 30;
 const CONFIG: HttpConfig = HttpConfig {
     connections: 4,
     min_split: 64 * 1024,
@@ -138,7 +143,7 @@ async fn downloads_over_several_connections() {
 
 #[tokio::test]
 async fn pause_and_resume_is_byte_identical() {
-    let s = setup(SIZE, 2).await;
+    let s = setup(SIZE, SLOW_MS).await;
     let mut dl = s.download();
     let (result, _) = s.run(&mut dl, Some(SIZE as u64 * 2 / 5), || {}).await;
     assert_eq!(result.unwrap(), Outcome::Paused);
@@ -180,7 +185,7 @@ async fn pause_and_resume_is_byte_identical() {
 
 #[tokio::test]
 async fn a_failed_restart_never_completes_a_file_with_holes() {
-    let s = setup(SIZE, 2).await;
+    let s = setup(SIZE, SLOW_MS).await;
     let mut dl = s.download();
     let (result, _) = s.run(&mut dl, Some(SIZE as u64 * 2 / 5), || {}).await;
     assert_eq!(result.unwrap(), Outcome::Paused);
@@ -208,7 +213,7 @@ async fn a_failed_restart_never_completes_a_file_with_holes() {
 #[tokio::test]
 async fn a_paused_download_resumes_after_its_file_moved() {
     // What moving a download to another category's folder does.
-    let s = setup(SIZE, 2).await;
+    let s = setup(SIZE, SLOW_MS).await;
     let mut dl = s.download();
     let (result, _) = s.run(&mut dl, Some(SIZE as u64 / 3), || {}).await;
     assert_eq!(result.unwrap(), Outcome::Paused);
@@ -309,7 +314,7 @@ async fn when_every_connection_fails_the_download_fails_and_resumes() {
 
 #[tokio::test]
 async fn a_damaged_part_file_restarts() {
-    let s = setup(SIZE, 2).await;
+    let s = setup(SIZE, SLOW_MS).await;
     let mut dl = s.download();
     let (result, _) = s.run(&mut dl, Some(SIZE as u64 / 3), || {}).await;
     assert_eq!(result.unwrap(), Outcome::Paused);
@@ -351,7 +356,7 @@ async fn one_connection_when_splitting_is_unsafe_or_pointless() {
 
 #[tokio::test]
 async fn progress_shows_each_range_as_it_fills() {
-    let s = setup(SIZE, 2).await;
+    let s = setup(SIZE, SLOW_MS).await;
     let mut dl = s.download();
     let (result, events) = s.run(&mut dl, None, || {}).await;
     s.assert_complete(result.unwrap(), &s.data);
