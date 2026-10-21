@@ -143,15 +143,15 @@ pub(crate) async fn reserve(dl: &mut Download, suggested: String) -> Result<(Str
 /// with what `dl` says arrived. If that request fails, the next try finds an
 /// empty file and starts from zero; it never finds a full-size file with
 /// holes, which a resume at its length would take as complete. Synced, so it
-/// holds before the empty map can be saved.
+/// holds before the empty map can be saved. The map is forgotten only once
+/// the file is empty: if emptying it fails, `dl` still describes it, and the
+/// next run checks it as before rather than resuming at its length.
 pub(crate) async fn restarting(
     dl: &mut Download,
     reason: RestartReason,
     on_event: &mut impl FnMut(Event),
 ) -> Result<(), Error> {
     tracing::debug!(url = %redact(&dl.url), ?reason, "restarting download from zero");
-    dl.downloaded = 0;
-    dl.segments.clear();
     if let Some(part) = dl.part_path() {
         match OpenOptions::new().write(true).open(&part).await {
             Ok(file) => {
@@ -162,6 +162,8 @@ pub(crate) async fn restarting(
             Err(e) => return Err(e.into()),
         }
     }
+    dl.downloaded = 0;
+    dl.segments.clear();
     on_event(Event::Restarted(reason));
     Ok(())
 }
@@ -329,5 +331,60 @@ mod tests {
         assert_eq!(redact(&url), "https://example.com/f.zip");
         let url = Url::parse("ftp://user:pw@nas.local/films/f.mkv").unwrap();
         assert_eq!(redact(&url), "ftp://nas.local/films/f.mkv");
+    }
+
+    /// A multi-connection download halfway, its `.part.ottie` at full size.
+    fn halfway(dir: &std::path::Path) -> Download {
+        let url = Url::parse("https://example.com/f.bin").unwrap();
+        let mut dl = Download::new(url, dir).unwrap();
+        dl.file_name = Some("f.bin".to_owned());
+        dl.total = Some(200);
+        dl.downloaded = 100;
+        dl.segments = vec![crate::download::Segment {
+            start: 0,
+            end: 200,
+            done: 100,
+        }];
+        dl
+    }
+
+    #[tokio::test]
+    async fn restarting_empties_the_file_then_forgets_the_map() {
+        let dir = tempfile::tempdir().unwrap();
+        let mut dl = halfway(dir.path());
+        let part = dl.part_path().unwrap();
+        std::fs::write(&part, [7; 200]).unwrap();
+        let mut events = Vec::new();
+        restarting(&mut dl, RestartReason::RemoteChanged, &mut |e| {
+            events.push(e)
+        })
+        .await
+        .unwrap();
+        assert_eq!(std::fs::metadata(&part).unwrap().len(), 0);
+        assert_eq!(dl.downloaded, 0);
+        assert!(dl.segments.is_empty());
+        assert!(matches!(
+            events[..],
+            [Event::Restarted(RestartReason::RemoteChanged)]
+        ));
+    }
+
+    /// The file can't be emptied: `dl` keeps the map that describes it, so
+    /// the next run never takes its length for bytes received in order.
+    #[tokio::test]
+    async fn restarting_keeps_the_map_when_the_file_cant_be_emptied() {
+        let dir = tempfile::tempdir().unwrap();
+        let mut dl = halfway(dir.path());
+        // Opening a folder to write fails everywhere, even as root.
+        std::fs::create_dir(dl.part_path().unwrap()).unwrap();
+        let mut events = Vec::new();
+        let result = restarting(&mut dl, RestartReason::RemoteChanged, &mut |e| {
+            events.push(e)
+        })
+        .await;
+        assert!(result.is_err());
+        assert_eq!(dl.downloaded, 100);
+        assert_eq!(dl.segments.len(), 1);
+        assert!(events.is_empty());
     }
 }
