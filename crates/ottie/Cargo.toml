@@ -1,6 +1,6 @@
 [package]
 name = "ottie"
-version = "0.1.0"
+version = "0.1.1"
 description = "Ottie, a cross-platform download manager: pause/resume, multi-connection downloads, speed limits (early development)"
 readme = "../../README.md"
 keywords = ["download-manager", "downloader", "http", "resume", "cli"]
@@ -20,8 +20,8 @@ clap = { version = "4.6.7", features = ["derive", "env"] }
 directories = "6.0.0"
 getrandom = "0.4.3"
 open = "5.4.4"
-ottie-api = { path = "../api", version = "0.1.0" }
-ottie-core = { path = "../core", version = "0.1.0" }
+ottie-api = { path = "../api", version = "0.1.1" }
+ottie-core = { path = "../core", version = "0.1.1" }
 # `ottie device`: a client of the running daemon's API (already built for the
 # engine's downloads).
 reqwest = { version = "0.13.5", default-features = false, features = ["json"] }

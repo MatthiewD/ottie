@@ -1,6 +1,6 @@
 [package]
 name = "ottie-core"
-version = "0.1.0"
+version = "0.1.1"
 description = "Download engine of the Ottie download manager: resumable, multi-connection HTTP and FTP downloads with speed limits"
 keywords = ["download-manager", "downloader", "http", "ftp", "resume"]
 categories = ["network-programming"]

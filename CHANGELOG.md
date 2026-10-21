@@ -4,6 +4,10 @@ What changes in Ottie from one version to the next: new features, changes and fi
 
 ## [Unreleased]
 
+## [0.1.1-experimental] - 2026-10-21
+
+Fixes, many of them for files, settings and downloads that a crash, a full disk or bad timing could damage or lose, and a few security improvements. Install it over 0.1.0: your downloads and settings carry over.
+
 ### Fixed
 
 - Speed limits above 1 TiB/s and start or stop times after the year 9999 are refused. Before, such a limit was accepted but couldn't be saved, so it was lost at the next start along with the settings changed after it, and such a time made the request fail on Windows.
@@ -59,5 +63,6 @@ What changes in Ottie from one version to the next: new features, changes and fi
 
 The initial release, for testing. What Ottie does is in the [README](https://github.com/MatthiewD/ottie#features).
 
-[Unreleased]: https://github.com/MatthiewD/ottie/compare/v0.1.0-experimental...HEAD
+[Unreleased]: https://github.com/MatthiewD/ottie/compare/v0.1.1-experimental...HEAD
+[0.1.1-experimental]: https://github.com/MatthiewD/ottie/compare/v0.1.0-experimental...v0.1.1-experimental
 [0.1.0-experimental]: https://github.com/MatthiewD/ottie/releases/tag/v0.1.0-experimental

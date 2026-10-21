@@ -1,6 +1,6 @@
 [package]
 name = "ottie-app"
-version = "0.1.0"
+version = "0.1.1"
 description = "Ottie's desktop app: a window on the daemon's web UI"
 edition.workspace = true
 license.workspace = true

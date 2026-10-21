@@ -1,6 +1,6 @@
 [package]
 name = "ottie-api"
-version = "0.1.0"
+version = "0.1.1"
 description = "HTTP API (REST + WebSocket events) of the Ottie download manager"
 keywords = ["download-manager", "api", "websocket"]
 categories = ["network-programming", "web-programming::http-server"]
@@ -23,7 +23,7 @@ getrandom = "0.4.3"
 # sha2, already in the lockfile.
 hmac = "0.13.0"
 mime_guess = "2.0.5"
-ottie-core = { path = "../core", version = "0.1.0" }
+ottie-core = { path = "../core", version = "0.1.1" }
 rust-embed = "8.13.0"
 serde = { version = "1.0.229", features = ["derive"] }
 serde_json = "1.0.154"

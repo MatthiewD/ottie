@@ -24,7 +24,7 @@ Sea otters keep their food and a favourite stone in a pouch of skin; Ottie keeps
 Ottie started because uGet, the download manager that inspired it, is no longer maintained. It keeps what made uGet good (categories, a queue, a scheduler, speed limits) and adds what a download manager needs today.
 
 > [!WARNING]
-> **Ottie is experimental.** The first test release is out for people willing to try it and report what breaks. Read the [disclaimer](#disclaimer) before you rely on it.
+> **Ottie is experimental.** Test releases are out for people willing to try it and report what breaks. Read the [disclaimer](#disclaimer) before you rely on it.
 
 ## Features
 
@@ -88,7 +88,7 @@ The downloads in these pictures are made up.
 
 ## Install
 
-Ottie is in its first test release: download it from the [Releases page](https://github.com/MatthiewD/ottie/releases) (pick the latest "Experimental" one).
+Ottie is in test releases: download it from the [Releases page](https://github.com/MatthiewD/ottie/releases) (pick the latest "Experimental" one). What each version changes is in the [changelog](CHANGELOG.md).
 
 ### Desktop app
 

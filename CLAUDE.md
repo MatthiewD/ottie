@@ -402,8 +402,10 @@ cargo run -p ottie -- service status # Ottie as a service (install / uninstall; 
 cargo run -p ottie -- device list    # other devices' tokens (add <name> [--read-only] / remove <id>); `token --new`
 cargo run -p ottie -- extension install  # the extension's native host for each browser found (status / uninstall)
 docker build -t ottie .              # the headless image (docs/service.md)
-git tag v0.1.0-experimental && git push origin v0.1.0-experimental  # a draft alpha release on GitHub (0056);
-                                     # first CHANGELOG.md's Unreleased → [0.1.0-experimental] (0057), or nothing builds
+git tag v0.1.1-experimental && git push origin v0.1.1-experimental  # a draft alpha release on GitHub (0056);
+                                     # first the version in the four Cargo.toml (and their path deps) and
+                                     # extension/package.json, `cargo test -p ottie-api` (openapi.json), and
+                                     # CHANGELOG.md's Unreleased → [0.1.1-experimental] (0057), or nothing builds
 
 pnpm install                         # JS dependencies (workspace: ui, shared/api-types)
 pnpm --filter ui dev                 # UI with live reload on :5173, /api forwarded to the daemon
