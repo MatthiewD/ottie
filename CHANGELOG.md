@@ -53,6 +53,7 @@ Fixes, many of them for files, settings and downloads that a crash, a full disk 
 ### Security
 
 - Secure connections (HTTPS, FTPS) use an updated version of rustls, the library behind them, which fixes four security advisories. None of them could be reached through the way Ottie uses it.
+- On Linux, where Ottie checks the certificates of secure connections (HTTPS, FTPS) itself rather than leaving it to the system, an updated rustls-webpki no longer accepts a certificate from an intermediate authority that has been distrusted (RUSTSEC-2026-0382). On Windows and macOS the system checks them.
 - A device limited to some folders can no longer have files written outside them through a link inside an allowed folder followed by `..` (`link/../elsewhere`). A device's folder containing `..` is now refused.
 - Another device, even a read-only one, can no longer find out whether a file exists in a folder it isn't allowed to use, by asking what adding a link there would do.
 - The desktop app, the browser extension's sign-in and the `ottie` command now make sure what answers on Ottie's port is really your Ottie before sending it this computer's token. Before, a program from another account that took the port first would have received the token, and the app would have shown its page with access to your files. An Ottie older than this version now has to be restarted on it.
