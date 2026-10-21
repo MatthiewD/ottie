@@ -7,3 +7,8 @@ bun.lockb
 
 # Miscellaneous
 /static/
+
+# What Paraglide's compiler writes beside our settings.json (its own
+# .gitignore hides them from git, but Prettier reads only this folder's)
+/project.inlang/*
+!/project.inlang/settings.json
