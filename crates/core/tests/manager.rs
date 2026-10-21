@@ -117,7 +117,9 @@ async fn job_goes_through_every_state() {
 
 #[tokio::test]
 async fn the_speed_history_shows_a_running_download() {
-    let mut s = setup(3, 5).await;
+    // 32 chunks 100 ms apart: still running after the samples below. With
+    // 5 ms it ended in ~160 ms on Linux, before any sample saw it.
+    let mut s = setup(3, 100).await;
     let before = s.manager.speed_history().await.unwrap().len();
     let id = s.add("one.bin").await;
     s.wait_for(id, JobState::Downloading).await;
