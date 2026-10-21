@@ -19,7 +19,7 @@ use crate::category::{self, BuiltIn, Category, CategoryId, CategorySettings, Mat
 use crate::certificate::{self, CertificateId, TrustedCertificate};
 use crate::download::{Download, Event, Outcome, Persist, Placement};
 use crate::error::Error;
-use crate::filename::{self, Existing, MoveFailure};
+use crate::filename::{self, Copies, Existing, MoveFailure};
 use crate::id::{IdGenerator, JobId};
 use crate::job::{JobChange, JobEvent, JobSnapshot, JobState, NewJob, Priority, Reorder};
 use crate::links::{self, Found, LinkPreview};
@@ -54,6 +54,8 @@ const CLOCK_CHECK: Duration = Duration::from_secs(30);
 /// How long the actor waits for a cancelled job's file to be deleted; the
 /// deletion carries on after that, on its own.
 const DELETE_WAIT: Duration = Duration::from_secs(1);
+/// Files copied to another drive at once (category moves); the others wait.
+const COPIES_AT_ONCE: usize = 2;
 
 /// Handle to the job manager. Cheap to clone; every clone talks to the same jobs.
 #[derive(Clone)]
@@ -145,6 +147,7 @@ impl Manager {
             speed: SpeedHistory::default(),
             playbacks: playbacks.clone(),
             internal,
+            copies: Copies::new(COPIES_AT_ONCE),
             shutdown: None,
         };
         for id in finished {
@@ -1013,6 +1016,8 @@ struct Actor<B> {
     playbacks: Playbacks,
     /// Cloned into each job task so it can report back.
     internal: mpsc::UnboundedSender<Internal>,
+    /// Shared by the moves' tasks: copies to another drive take turns.
+    copies: Copies,
     /// `Some` once shutting down; holds the replies to send when everything has stopped.
     shutdown: Option<Vec<Reply<()>>>,
 }
@@ -1999,6 +2004,7 @@ impl<B: Backend> Actor<B> {
         let category = moving.category;
         let internal = self.internal.clone();
         let saving = self.internal.clone();
+        let copies = self.copies.clone();
         supervised(
             async move {
                 let undone = MoveFailure::Undone;
@@ -2029,7 +2035,7 @@ impl<B: Backend> Actor<B> {
                     let _ = tokio::fs::remove_file(to.join(filename::part_name(&candidate))).await;
                     return Err(undone(io::Error::other(err.to_string())));
                 }
-                filename::move_to(&from, &name, finished, &to, &candidate)
+                filename::move_to(&from, &name, finished, &to, &candidate, &copies)
                     .await
                     .map(|name| (to, name))
             },
@@ -3070,6 +3076,8 @@ impl<B: Backend> Actor<B> {
 
     fn begin_shutdown(&mut self, reply: Option<Reply<()>>) {
         self.shutdown.get_or_insert_with(Vec::new).extend(reply);
+        // A move waiting for its turn stays where it was.
+        self.copies.stop();
         for job in self.jobs.values_mut() {
             if let Some(task) = &mut job.task {
                 task.stop = task.stop.max(Some(Stop::Shutdown));

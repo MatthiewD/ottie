@@ -2,10 +2,13 @@
 
 use std::io;
 use std::path::Path;
+use std::sync::Arc;
 
 use percent_encoding::percent_decode_str;
 use reqwest::Url;
 use tokio::fs::{self, File, OpenOptions};
+use tokio::sync::{Semaphore, SemaphorePermit};
+use tokio_util::sync::CancellationToken;
 
 use crate::rename;
 
@@ -261,7 +264,7 @@ async fn relocate(from: &Path, name: &str, finished: bool, to: &Path) -> io::Res
         return Ok(name.to_owned());
     }
     let candidate = reserve_in(to, name).await?;
-    move_to(from, name, finished, to, &candidate)
+    move_to(from, name, finished, to, &candidate, &Copies::new(1))
         .await
         .map_err(MoveFailure::into_error)
 }
@@ -301,6 +304,48 @@ impl MoveFailure {
     }
 }
 
+/// Copies between drives (moves there), a few at a time: more at once only
+/// share the disks (a seek each, on a hard disk), and every file arrives
+/// later. A rename on one drive never waits for them.
+#[derive(Clone)]
+pub(crate) struct Copies {
+    turns: Arc<Semaphore>,
+    /// Ottie is stopping: a copy that hasn't begun doesn't.
+    stopping: CancellationToken,
+}
+
+impl Copies {
+    pub(crate) fn new(at_once: usize) -> Self {
+        Copies {
+            turns: Arc::new(Semaphore::new(at_once)),
+            stopping: CancellationToken::new(),
+        }
+    }
+
+    /// Copies waiting for their turn give up; those under way finish.
+    pub(crate) fn stop(&self) {
+        self.stopping.cancel();
+    }
+
+    /// Waits for a copy's turn. Unless it puts a file back (`may_stop`
+    /// false), it's refused once Ottie is stopping.
+    async fn turn(&self, may_stop: bool) -> io::Result<SemaphorePermit<'_>> {
+        let stopping = async {
+            if may_stop {
+                self.stopping.cancelled().await;
+            } else {
+                std::future::pending::<()>().await;
+            }
+        };
+        tokio::select! {
+            biased;
+            () = stopping => Err(io::Error::other("Ottie is stopping")),
+            // Never closed.
+            turn = self.turns.acquire() => turn.map_err(io::Error::other),
+        }
+    }
+}
+
 /// Moves the file from `from` to `to`, under `candidate` (from
 /// [`reserve_in`]): its name there. If anything fails, the original is put
 /// back where it was, unless even that fails.
@@ -310,10 +355,11 @@ pub(crate) async fn move_to(
     finished: bool,
     to: &Path,
     candidate: &str,
+    copies: &Copies,
 ) -> Result<String, MoveFailure> {
     let source = source_of(from, name, finished);
     let part = to.join(part_name(candidate));
-    if let Err(err) = move_file(&source, &part).await {
+    if let Err(err) = move_file(&source, &part, copies, true).await {
         // A copy between drives leaves the original until it's complete.
         let _ = fs::remove_file(&part).await;
         return Err(MoveFailure::Undone(err));
@@ -324,7 +370,7 @@ pub(crate) async fn move_to(
     match finalize(to, candidate, &part, false).await {
         Ok(name) => Ok(name),
         // Put it back rather than leave it half-moved.
-        Err(err) => match move_file(&part, &source).await {
+        Err(err) => match move_file(&part, &source, copies, false).await {
             Ok(()) => Err(MoveFailure::Undone(err)),
             Err(back) => {
                 tracing::error!(error = %back, "a moved file couldn't be put back");
@@ -358,10 +404,17 @@ pub(crate) async fn settle_move(
 }
 
 /// Renames `source` to `target`, replacing it. Between drives a rename
-/// can't work, so it copies, then deletes the original.
-async fn move_file(source: &Path, target: &Path) -> io::Result<()> {
+/// can't work, so it copies (in its turn, see [`Copies::turn`]), then
+/// deletes the original.
+async fn move_file(
+    source: &Path,
+    target: &Path,
+    copies: &Copies,
+    may_stop: bool,
+) -> io::Result<()> {
     match fs::rename(source, target).await {
         Err(err) if err.kind() == io::ErrorKind::CrossesDevices => {
+            let _turn = copies.turn(may_stop).await?;
             copy_then_delete(source, target).await
         }
         other => other,
@@ -432,6 +485,7 @@ fn truncate(name: &str) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::time::Duration;
 
     #[test]
     fn name_comes_from_last_path_segment() {
@@ -706,6 +760,28 @@ mod tests {
         let name = relocate(&from, "gone.iso", true, &to).await.unwrap();
         assert_eq!(name, "gone.iso");
         assert!(!to.exists());
+    }
+
+    #[tokio::test]
+    async fn copies_take_turns_and_stop_waiting_when_ottie_stops() {
+        let copies = Copies::new(2);
+        let first = copies.turn(true).await.unwrap();
+        let _second = copies.turn(true).await.unwrap();
+        // A third waits for a turn.
+        let third = tokio::time::timeout(Duration::from_millis(50), copies.turn(true)).await;
+        assert!(third.is_err(), "only two at once");
+        drop(first);
+        let third = copies.turn(true).await.unwrap();
+        // Ottie stops: a copy that hasn't begun gives up, but a file
+        // going back to where it was still gets its turn.
+        let putting_back = tokio::spawn({
+            let copies = copies.clone();
+            async move { copies.turn(false).await.map(drop) }
+        });
+        copies.stop();
+        assert!(copies.turn(true).await.is_err());
+        drop(third);
+        putting_back.await.unwrap().unwrap();
     }
 
     #[tokio::test]

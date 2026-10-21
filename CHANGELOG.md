@@ -43,6 +43,7 @@ What changes in Ottie from one version to the next: new features, changes and fi
 - When the disk failed just as a download was paused, or as Ottie quit (disk full, a drive unplugged), the pause still seemed to work and nothing said what had gone wrong. The download is now paused with the disk's problem shown, and only what was really written counts.
 - A file moved to a category's folder on another drive is now written to that drive for sure before the original is deleted, so a power cut at that moment can't lose it.
 - A large file downloaded in order (streaming mode, on by itself for videos and music) made Ottie work harder and harder as it went: tens of gigabytes in, it kept a processor core busy, and the pages following it received ever larger updates. It now takes the same small effort from start to end.
+- Moving many downloads at once to a category whose folder is on another drive copied all their files at the same time, so each one took longer. Two are now copied at a time, the others waiting their turn; quitting Ottie leaves those still waiting where they were.
 
 ### Security
 
