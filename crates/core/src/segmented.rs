@@ -220,6 +220,7 @@ pub(crate) async fn run(
         reading: AtomicBool::new(false),
     });
     let mut parts: Vec<Part> = dl.segments.iter().copied().map(Part::new).collect();
+    compact(&mut parts);
     tracing::debug!(ranges = parts.len(), total, "several connections");
     // Stops every connection, either because the user paused or because
     // one connection hit a problem that ends the whole run.
@@ -242,14 +243,19 @@ pub(crate) async fn run(
     while !tasks.is_empty() {
         tokio::select! {
             Some(joined) = tasks.join_next() => {
-                let Ok((index, result)) = joined else {
+                let Ok((shared, result)) = joined else {
                     // A connection task panicked. Stop the others; resuming is safe.
                     failure.get_or_insert(Error::Io(io::Error::other("connection task panicked")));
                     stop.cancel();
                     continue;
                 };
-                parts[index].busy = false;
-                parts[index].stopping = false;
+                // Ranges move as finished ones merge, so it's found by what
+                // it shares (always there: a busy range never merges).
+                if let Some(part) = parts.iter_mut().find(|p| Arc::ptr_eq(&p.shared, &shared)) {
+                    part.busy = false;
+                    part.stopping = false;
+                }
+                compact(&mut parts);
                 match result {
                     Ok(Ended::Done | Ended::Starved) if !stop.is_cancelled() => {
                         fill(&mut parts, &mut tasks, &context, &stop, &mut first, config, &order);
@@ -334,7 +340,7 @@ pub(crate) async fn run(
     }
 }
 
-type Task = (usize, Result<Ended, Error>);
+type Task = (Arc<Shared>, Result<Ended, Error>);
 
 /// Where connections go first.
 struct Order {
@@ -416,7 +422,7 @@ fn fill(
         let stop = stop.clone();
         tasks.spawn(async move {
             let result = connection(&context, &shared, response, &stop).await;
-            (index, result)
+            (shared, result)
         });
     }
 }
@@ -448,6 +454,41 @@ fn cut(parts: &mut Vec<Part>, index: usize, at: u64) -> usize {
         done: 0,
     }));
     parts.len() - 1
+}
+
+/// Merges each run of neighbouring finished ranges into one, and drops the
+/// empty ones nobody works on (left by `make_room`). Streaming cuts a file
+/// into thousands of pieces; without this, steering would walk each of them
+/// every tick, and progress and checkpoints would carry them all. A range is
+/// finished only once its connection has ended and it's flushed to disk, so
+/// what's saved never covers more than what's on disk.
+fn compact(parts: &mut Vec<Part>) {
+    let finished = |p: &Part| !p.busy && p.shared.durable.load(SeqCst) >= p.end();
+    if parts.iter().filter(|p| finished(p)).count() < 2 {
+        return;
+    }
+    let (mut done, rest): (Vec<Part>, Vec<Part>) = parts.drain(..).partition(finished);
+    done.retain(|p| p.end() > p.start);
+    done.sort_by_key(|p| p.start);
+    parts.extend(rest);
+    let mut merged: Vec<Part> = Vec::with_capacity(done.len());
+    for part in done {
+        match merged.last_mut() {
+            Some(last) if last.end() == part.start => {
+                let end = part.end();
+                for reached in [
+                    &last.shared.end,
+                    &last.shared.pos,
+                    &last.shared.durable,
+                    &last.shared.shown,
+                ] {
+                    reached.store(end, SeqCst);
+                }
+            }
+            _ => merged.push(part),
+        }
+    }
+    parts.extend(merged);
 }
 
 /// Streaming mode: cuts each busy range with more than `TRIM` pieces left
@@ -945,6 +986,41 @@ mod tests {
         let config = config(4, MIB);
         assert_eq!(piece_size(&config, 0), 4 * MIB, "never under 4 × min_split");
         assert_eq!(piece_size(&config, 40 * MIB), 20 * MIB);
+    }
+
+    #[test]
+    fn finished_neighbours_become_one_range() {
+        let range = |start, end, done| Part::new(Segment { start, end, done });
+        let mut parts = vec![
+            range(100, 200, 100),
+            range(300, 400, 50),
+            range(0, 100, 100),
+            range(200, 300, 100),
+            // Finished but not yet flushed.
+            range(400, 500, 100),
+            range(500, 600, 100),
+            // Left by a connection made to stop before its first byte.
+            range(600, 600, 0),
+            range(600, 1000, 0),
+        ];
+        parts[1].busy = true;
+        parts[4].shared.durable.store(450, SeqCst);
+        compact(&mut parts);
+        assert_eq!(
+            ranges(&parts),
+            [(0, 300), (300, 400), (400, 500), (500, 600), (600, 1000)]
+        );
+        let done: Vec<u64> = segments(&parts).iter().map(|s| s.done).collect();
+        assert_eq!(done, [300, 50, 50, 100, 0]);
+        assert!(parts.iter().any(|p| p.busy && p.start == 300), "still busy");
+
+        // A whole streamed prefix becomes one range.
+        let mut parts: Vec<Part> = (0..10_000)
+            .map(|i| range(i * 10, (i + 1) * 10, 10))
+            .collect();
+        compact(&mut parts);
+        assert_eq!(ranges(&parts), [(0, 100_000)]);
+        assert_eq!(missing_from(&parts, 0), None);
     }
 
     #[test]
